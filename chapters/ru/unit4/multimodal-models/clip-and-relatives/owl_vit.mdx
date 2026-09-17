@@ -1,0 +1,77 @@
+# Мультимодальная детекция объектов (OWL-ViT)
+### Введение
+
+Детекция объектов — критически важная задача в компьютерном зрении — увидела значительные достижения с моделями вроде YOLO ([оригинальная статья](https://arxiv.org/abs/1506.02640), [последняя версия кода](https://github.com/ultralytics/ultralytics)). Однако традиционные модели вроде YOLO имеют ограничения в детекции объектов вне своих обучающих датасетов. Чтобы это решить, сообщество ИИ сдвинулось к разработке моделей, которые могут идентифицировать более широкий спектр объектов, что привело к созданию моделей, родственных CLIP, но для детекции объектов.
+
+### OWL-ViT: улучшения и возможности
+OWL-ViT представляет скачок вперёд в детекции объектов с открытым словарём. Она начинается со стадии обучения, похожей на CLIP, сосредоточенной на энкодере зрения и языка с использованием контрастивной функции потерь. Эта фундаментальная стадия позволяет модели выучить общее пространство представлений и для визуальных, и для текстовых данных.
+
+#### Дообучение для детекции объектов
+Инновация OWL-ViT приходит на стадии дообучения для детекции объектов. Здесь вместо token pooling и финального проекционного слоя, используемых в CLIP, OWL-ViT применяет линейную проекцию каждого выходного токена, чтобы получить эмбеддинги изображения для каждого объекта. Эти эмбеддинги затем используются для классификации, а координаты прямоугольников выводятся из представлений токенов через небольшой MLP. Этот подход позволяет OWL-ViT детектировать объекты и их пространственные положения внутри изображений — значительное продвижение относительно традиционных моделей детекции объектов.
+
+Ниже — диаграмма стадий предобучения и дообучения OWL-ViT:
+
+![Предобучение и дообучение OWL-ViT](https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/transformers/model_doc/owlvit_architecture.jpg)
+
+#### Детекция с открытым словарём
+После дообучения OWL-ViT превосходно справляется с детекцией объектов с открытым словарём. Она может идентифицировать объекты, явно не присутствующие в обучающем датасете, благодаря общему пространству эмбеддингов энкодеров зрения и текста. Эта возможность делает реальным использование и изображений, и текстовых запросов для детекции объектов, повышая её универсальность.
+
+#### Пример сценария использования
+Для практических приложений обычно используют текст как запрос и изображение как контекст. Приведённый пример на Python демонстрирует, как использовать библиотеку transformers для инференса с OWL-ViT.
+
+```python
+import requests
+from PIL import Image, ImageDraw
+import torch
+from transformers import OwlViTProcessor, OwlViTForObjectDetection
+
+processor = OwlViTProcessor.from_pretrained("google/owlvit-base-patch32")
+model = OwlViTForObjectDetection.from_pretrained("google/owlvit-base-patch32")
+
+url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+image = Image.open(requests.get(url, stream=True).raw)
+texts = [["a photo of a cat", "a photo of a dog", "remote control", "cat tail"]]
+inputs = processor(text=texts, images=image, return_tensors="pt")
+outputs = model(**inputs)
+
+target_sizes = torch.Tensor([image.size[::-1]])
+results = processor.post_process_object_detection(
+    outputs=outputs, target_sizes=target_sizes, threshold=0.1
+)
+i = 0  # Retrieve predictions for the first image for the corresponding text queries
+text = texts[i]
+boxes, scores, labels = results[i]["boxes"], results[i]["scores"], results[i]["labels"]
+
+# Create a draw object
+draw = ImageDraw.Draw(image)
+
+# Draw each bounding box
+for box, score, label in zip(boxes, scores, labels):
+    box = [round(i, 2) for i in box.tolist()]
+    print(
+        f"Detected {text[label]} with confidence {round(score.item(), 3)} at location {box}"
+    )
+    # Draw the bounding box on the image
+    draw.rectangle(box, outline="red")
+
+# Display the image
+image
+```
+Изображение должно выглядеть так:
+![Пример OWL-ViT](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/OWL_ViT_example.jpg)
+Этот пример показывает простой сценарий использования OWL-ViT, где мы указываем объекты, вероятно присутствующие в датасете, вроде кошки, и более абстрактные объекты вроде хвоста кошки, которых, скорее всего, нет ни в одном датасете детекции объектов. Это показывает мощь OWL-ViT в детекции объектов с открытым словарём.
+
+Не стесняйтесь использовать код, чтобы попробовать более сложные примеры, или это приложение Gradio:
+
+<iframe
+	src="https://johko-OWL-ViT.hf.space"
+	frameborder="0"
+	width="850"
+	height="450">
+</iframe>
+
+### Заключение
+
+Подход OWL-ViT к детекции объектов представляет заметный сдвиг в том, как модели ИИ понимают визуальный мир и взаимодействуют с ним. Интегрируя понимание языка с визуальным восприятием, она раздвигает границы детекции объектов, делая возможными более точные и универсальные модели, способные идентифицировать более широкий спектр объектов. Эта эволюция возможностей моделей критически важна для приложений, требующих нюансированного понимания визуальных сцен, особенно в динамичных реальных средах.
+
+Для более глубокой информации и технических деталей обратитесь к [статье OWL-ViT](https://arxiv.org/abs/2205.06230). Информацию о [модели OWL-ViT 2](https://huggingface.co/docs/transformers/model_doc/owlv2) также можно найти в документации Hugging Face.

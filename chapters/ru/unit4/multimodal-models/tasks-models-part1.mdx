@@ -1,0 +1,395 @@
+# Мультимодальные задачи и модели
+
+В этом разделе мы кратко рассмотрим разные мультимодальные задачи, связанные с модальностями изображения и текста, и соответствующие им модели. Прежде чем погрузиться, коротко напомним, что имеется в виду под «мультимодальным» — это покрывалось в предыдущих разделах. Человеческий мир — симфония разнообразных сенсорных входов. Мы воспринимаем и понимаем через зрение, слух, осязание и многое другое. Именно эта мультимодальность отличает наше богатое понимание от ограничений традиционных унимодальных моделей ИИ. Черпая вдохновение из человеческого познания, мультимодальные модели стремятся преодолеть этот разрыв, интегрируя информацию из нескольких источников: текста, изображений, аудио и даже сенсорных данных. Это слияние модальностей ведёт к более полному и нюансированному пониманию мира, открывая огромный спектр задач и приложений.
+
+## Примеры задач
+Прежде чем рассматривать конкретные модели, важно понять разнообразный спектр задач, связанных с изображением и текстом. Эти задачи включают, но не ограничиваются следующими:
+
+- **Visual Question Answering (VQA) и визуальное рассуждение:** Представьте машину, которая смотрит на картинку и понимает ваши вопросы о ней. Visual Question Answering (VQA) — это как раз то! Она обучает компьютеры извлекать смысл из изображений и отвечать на вопросы вроде «Кто за рулём машины?», а визуальное рассуждение — это «секретный ингредиент», позволяющий машине выйти за рамки простого распознавания: выводить отношения, сравнивать объекты и понимать контекст сцены, чтобы давать точные ответы. Это как попросить детектива прочитать улики на картинке — только намного быстрее и лучше!
+
+- **Document Visual Question Answering (DocVQA):** Представьте компьютер, который понимает и текст, и макет документа — карты или контракта — и затем отвечает на вопросы о нём прямо по изображению. Это Document Visual Question Answering (DocVQA) в двух словах. Оно сочетает компьютерное зрение для обработки элементов изображения и обработку естественного языка для интерпретации текста, позволяя машинам «читать» документы и отвечать на вопросы о них так же, как это делают люди. Думайте об этом как об усилении поиска по документам с помощью ИИ, чтобы раскрыть всю информацию, запертую в этих изображениях.
+
+- **Генерация подписей к изображениям:** Генерация подписей к изображениям соединяет зрение и язык. Она анализирует изображение как детектив, извлекая детали, понимая сцену и затем составляя одно-два предложения, которые рассказывают историю: закат над спокойным морем, ребёнок, смеющийся на качелях, или даже оживлённая городская улица. Это увлекательное сочетание компьютерного зрения и языка, позволяющее компьютерам описывать мир вокруг них — по одной картинке за раз.
+
+- **Поиск изображение–текст:** Поиск изображение–текст — как сваха для изображений и их описаний. Представьте поиск конкретной книги в библиотеке, но вместо просмотра названий вы можете использовать либо картинку на обложке, либо краткое резюме. Это как сверхмощный поисковик, который понимает и картинки, и слова, открывая двери для захватывающих приложений вроде поиска изображений, автоматических подписей и даже помощи людям с нарушениями зрения «видеть» через текстовые описания.
+
+- **Визуальное заземление:** Визуальное заземление — это соединение точек между тем, что мы видим, и тем, что говорим. Речь о понимании того, как язык ссылается на конкретные части изображения, позволяя моделям ИИ указывать объекты или регионы на основе описаний на естественном языке. Представьте, что вы спрашиваете: «Где красное яблоко в вазе с фруктами?» — и ИИ мгновенно выделяет его на картинке. Вот как работает визуальное заземление!
+
+- **Генерация изображения по тексту:** Представьте волшебную кисть, которая интерпретирует ваши слова и оживляет их! Генерация изображения по тексту именно такова: она превращает ваши письменные описания в уникальные изображения. Это сочетание понимания языка и создания изображений, где ваш текст открывает визуальный мир — от фотореалистичных пейзажей до сновидческих абстракций, рождённых силой ваших слов.
+
+## Visual Question Answering (VQA) и визуальное рассуждение
+![VQA](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/multimodal_fusion_text_vision/vqa_visual_reasoning.png) *Пример входа (изображение + текст) и выхода (текст) для моделей VQA и визуального рассуждения [[1]](#pretraining-paper)*
+
+**Visual Question Answering (VQA)**
+- **Вход:** Пара изображение–вопрос (изображение и вопрос о нём).
+- **Выход:** В постановке множественного выбора: метка, соответствующая правильному ответу среди заранее заданных вариантов.
+В открытой постановке: свободный ответ на естественном языке на основе изображения и вопроса.
+- **Задача:** Отвечать на вопросы об изображениях. (Большинство моделей VQA трактуют это как задачу классификации с заранее заданными ответами). См. пример выше для справки.
+
+**Визуальное рассуждение**
+- **Вход:** Зависит от конкретной задачи визуального рассуждения:
+    - Задачи в стиле VQA: пары изображение–вопрос.
+    - Задачи сопоставления: изображения и текстовые утверждения.
+    - Задачи следования (entailment): пара изображение и текст (потенциально с несколькими утверждениями).
+    - Задачи с подвопросами: изображение и основной вопрос с дополнительными подвопросами, связанными с восприятием.
+- **Выход:** Зависит от задачи:
+    - VQA: ответы на вопросы об изображении.
+    - Сопоставление: True/False — верно ли утверждение об изображении(ях).
+    - Следование: предсказание, следует ли изображение семантически из текста.
+    - Подвопросы: ответы на подвопросы, связанные с восприятием.
+- **Задача:** Выполняет различные задачи рассуждения по изображениям. См. пример выше для справки.
+
+В целом и VQA, и визуальное рассуждение трактуются как задача *Visual Question Answering (VQA)*. Некоторые популярные модели для задач VQA:
+- **BLIP-VQA**: Это большая предобученная модель для задач visual question answering (VQA), разработанная Salesforce AI. Она использует подход «Bootstrapping Language-Image Pre-training» (BLIP), который задействует и шумные веб-данные, и генерацию подписей, чтобы достичь state-of-the-art качества на различных задачах зрения и языка. Вы можете использовать BLIP в Hugging Face следующим образом:
+```python
+from PIL import Image
+from transformers import pipeline
+
+vqa_pipeline = pipeline(
+    "visual-question-answering", model="Salesforce/blip-vqa-capfilt-large"
+)
+
+image = Image.open("elephant.jpeg")
+question = "Is there an elephant?"
+
+vqa_pipeline(image, question, top_k=1)
+```
+- **Deplot**: Это one-shot модель визуального языкового рассуждения, обученная переводить графики и диаграммы в текстовые сводки. Это позволяет интегрировать её с LLM для ответов на сложные вопросы о данных, даже с новыми запросами, написанными человеком. DePlot достигает этого, стандартизируя задачу перевода графика в таблицу и опираясь на архитектуру Pix2Struct, превосходя предыдущий SOTA по chart QA всего с одним примером и промптингом LLM. Вы можете использовать Deplot в Hugging Face следующим образом:
+```python
+from transformers import Pix2StructProcessor, Pix2StructForConditionalGeneration
+import requests
+from PIL import Image
+
+processor = Pix2StructProcessor.from_pretrained("google/deplot")
+model = Pix2StructForConditionalGeneration.from_pretrained("google/deplot")
+
+url = "https://raw.githubusercontent.com/vis-nlp/ChartQA/main/ChartQA%20Dataset/val/png/5090.png"
+image = Image.open(requests.get(url, stream=True).raw)
+
+inputs = processor(
+    images=image,
+    text="Generate underlying data table of the figure below:",
+    return_tensors="pt",
+)
+predictions = model.generate(**inputs, max_new_tokens=512)
+print(processor.decode(predictions[0], skip_special_tokens=True))
+```
+- **VLIT**: Это модель Vision-and-Language Transformer (ViLT), использующая архитектуру трансформера без свёрток и без супервизии по регионам, дообученная на датасете VQAv2 для ответов на вопросы на естественном языке об изображениях. Базовая модель ViLT обладает большой архитектурой (размер B32) и опирается на совместное обучение изображений и текста, что делает её эффективной для различных задач зрения и языка, особенно VQA, достигая конкурентоспособного качества. Вы можете использовать VLIT в Hugging Face следующим образом:
+```python
+from transformers import ViltProcessor, ViltForQuestionAnswering
+import requests
+from PIL import Image
+
+# prepare image + question
+url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+image = Image.open(requests.get(url, stream=True).raw)
+text = "How many cats are there?"
+
+processor = ViltProcessor.from_pretrained("dandelin/vilt-b32-finetuned-vqa")
+model = ViltForQuestionAnswering.from_pretrained("dandelin/vilt-b32-finetuned-vqa")
+
+# prepare inputs
+encoding = processor(image, text, return_tensors="pt")
+
+# forward pass
+outputs = model(**encoding)
+logits = outputs.logits
+idx = logits.argmax(-1).item()
+print("Predicted answer:", model.config.id2label[idx])
+```
+Подробнее о том, как обучать и использовать модели VQA в библиотеке Hugging Face `transformers`, читайте [здесь](https://huggingface.co/docs/transformers/v4.36.1/tasks/visual_question_answering).
+
+## Визуальные ответы на вопросы по документам (DocVQA)
+![DocVQA](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/multimodal_fusion_text_vision/doc_vqa.jpg)
+*Пример входа (изображение + текст) и выхода (текст) для модели DocVQA. [[2]](#doc-vqa-paper)*
+- **Вход:**
+    - Изображение документа: отсканированное или цифровое изображение документа, содержащее текст, макет и визуальные элементы.
+    - Вопрос о документе: вопрос на естественном языке в текстовом формате.
+- **Задача:**
+    - Анализировать и понимать: модель DocVQA должна обработать и визуальную, и текстовую информацию внутри документа, чтобы полностью постичь его содержание.
+    - Рассуждать и выводить: модели нужно установить отношения между визуальными элементами, текстом и вопросом, чтобы сделать релевантные выводы.
+    - Сгенерировать ответ на естественном языке: модель должна произвести ясный, краткий и точный ответ на вопрос в текстовом формате естественного языка. См. пример выше для справки.
+
+- **Выход:** Ответ на вопрос: текстовый ответ, который напрямую адресует запрос и точно отражает информацию, найденную в документе.
+
+Теперь посмотрим на некоторые популярные модели DocVQA в Hugging Face:
+- **LayoutLM:** Это предобученная нейронная сеть, которая понимает изображения документов, совместно анализируя и текст, и его макет. В отличие от традиционных NLP-моделей, она учитывает такие факторы, как размер шрифта, положение и близость, чтобы выучить отношения между словами и их значением в контексте документа. Это позволяет ей преуспевать в задачах вроде понимания форм, анализа чеков и классификации документов, делая её мощным инструментом извлечения информации из отсканированных документов. Вы можете использовать LayoutLM в Hugging Face следующим образом:
+```python
+from transformers import pipeline
+from PIL import Image
+
+pipe = pipeline("document-question-answering", model="impira/layoutlm-document-qa")
+
+question = "What is the purchase amount?"
+image = Image.open("your-document.png")
+
+pipe(image=image, question=question)
+
+## [{'answer': '20,000$'}]
+```
+- **Donut:** Также известная как OCR-free Document Understanding Transformer, это современная модель обработки изображений, которая обходит традиционное оптическое распознавание символов (OCR) и напрямую анализирует изображения документов, чтобы понять их содержание. Она сочетает визуальный энкодер (Swin Transformer) с текстовым декодером (BART) для извлечения информации и генерации текстовых описаний, преуспевая в задачах вроде классификации документов, понимания форм и visual question answering. Её уникальная сила — «сквозная» природа: она избегает потенциальных ошибок, вносимых отдельными шагами OCR, и достигает впечатляющей точности при эффективной обработке. Вы можете использовать модель Donut в Hugging Face следующим образом:
+```python
+from transformers import pipeline
+from PIL import Image
+
+pipe = pipeline(
+    "document-question-answering", model="naver-clova-ix/donut-base-finetuned-docvqa"
+)
+
+question = "What is the purchase amount?"
+image = Image.open("your-document.png")
+
+pipe(image=image, question=question)
+
+## [{'answer': '20,000$'}]
+```
+- **Nougat:** Это визуальная модель-трансформер, обученная на миллионах научных статей, которая может напрямую «читать» отсканированные PDF и выводить их содержание в структурированном языке разметки, даже понимая сложные элементы вроде математических уравнений и таблиц. Она обходит традиционное оптическое распознавание символов, достигая высокой точности при сохранении семантики и делая научное знание, хранящееся в PDF, более доступным и пригодным к использованию. Nougat использует ту же архитектуру, что и Donut: визуальный энкодер-трансформер и авторегрессионный текстовый декодер-трансформер, чтобы переводить научные PDF в markdown, упрощая доступ к ним. Вы можете использовать модель Nougat в Hugging Face следующим образом:
+```python
+from huggingface_hub import hf_hub_download
+import re
+from PIL import Image
+
+from transformers import NougatProcessor, VisionEncoderDecoderModel
+from datasets import load_dataset
+import torch
+
+processor = NougatProcessor.from_pretrained("facebook/nougat-base")
+model = VisionEncoderDecoderModel.from_pretrained("facebook/nougat-base")
+
+device = "cuda" if torch.cuda.is_available() else "cpu"
+model.to(device)
+# prepare PDF image for the model
+filepath = hf_hub_download(
+    repo_id="hf-internal-testing/fixtures_docvqa",
+    filename="nougat_paper.png",
+    repo_type="dataset",
+)
+image = Image.open(filepath)
+pixel_values = processor(image, return_tensors="pt").pixel_values
+
+# generate transcription (here we only generate 30 tokens)
+outputs = model.generate(
+    pixel_values.to(device),
+    min_length=1,
+    max_new_tokens=30,
+    bad_words_ids=[[processor.tokenizer.unk_token_id]],
+)
+
+sequence = processor.batch_decode(outputs, skip_special_tokens=True)[0]
+sequence = processor.post_process_generation(sequence, fix_markdown=False)
+# note: we're using repr here such for the sake of printing the \n characters, feel free to just print the sequence
+print(repr(sequence))
+```
+Подробнее о том, как обучать и использовать модели DocVQA в библиотеке Hugging Face `transformers`, читайте [здесь](https://huggingface.co/docs/transformers/tasks/document_question_answering).
+
+## Генерация подписей к изображениям
+![Генерация подписей к изображениям](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/multimodal_fusion_text_vision/image_captioning.png)
+*Пример входа (изображение) и выхода (текст) для модели генерации подписей к изображениям. [[1]](#pretraining-paper)*
+- **Входы:**
+    - Изображение: изображение в различных форматах (например, JPEG, PNG).
+    - Предобученный экстрактор признаков изображения (опционально): предобученная нейронная сеть, которая может извлекать осмысленные признаки из изображений, например свёрточная нейронная сеть (CNN).
+- **Выходы:** Текстовые подписи: одно предложение или абзац, которые точно описывают содержание входных изображений, захватывая объекты, действия, отношения и общий контекст. См. пример выше для справки.
+- **Задача:** Автоматически генерировать описания изображений на естественном языке. Это включает: (1) понимание визуального содержания изображения (объекты, действия, отношения); (2) кодирование этой информации в осмысленное представление; (3) декодирование этого представления в связное, грамматически корректное и информативное предложение или фразу.
+
+Теперь посмотрим на некоторые популярные модели генерации подписей к изображениям в Hugging Face:
+- **ViT-GPT2:** Это модель на PyTorch для генерации подписей к изображениям, построенная путём объединения Vision Transformer (ViT) для извлечения визуальных признаков и GPT-2 для генерации текста. Обученная на датасете COCO, она использует способность ViT кодировать богатые детали изображения и беглость GPT-2 в производстве языка, чтобы создавать точные и описательные подписи. Эта open-source модель предлагает эффективное решение для задач понимания изображений и генерации подписей. Вы можете использовать **ViT-GPT2** в Hugging Face следующим образом:
+```python
+from transformers import pipeline
+
+image_to_text = pipeline("image-to-text", model="nlpconnect/vit-gpt2-image-captioning")
+
+image_to_text("https://ankur3107.github.io/assets/images/image-captioning-example.png")
+
+# [{'generated_text': 'a soccer game with a player jumping to catch the ball '}]
+```
+- **BLIP-Image-Captioning:** Это современная модель генерации подписей к изображениям на основе BLIP — фреймворка, предобученного и на чистых, и на шумных веб-данных для унифицированного понимания и генерации зрения и языка. Она использует процесс бутстрэппинга, чтобы отфильтровать шумные подписи, достигая улучшенного качества на задачах вроде генерации подписей к изображениям, поиска изображение–текст и VQA. Эта большая версия, построенная с бэкбоном ViT-L, превосходно генерирует точные и детальные подписи по изображениям. Вы можете использовать модель BLIP Image Captioning в Hugging Face следующим образом:
+```python
+import requests
+from PIL import Image
+from transformers import BlipProcessor, BlipForConditionalGeneration
+
+processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-large")
+model = BlipForConditionalGeneration.from_pretrained(
+    "Salesforce/blip-image-captioning-large"
+)
+
+img_url = "https://storage.googleapis.com/sfr-vision-language-research/BLIP/demo.jpg"
+raw_image = Image.open(requests.get(img_url, stream=True).raw).convert("RGB")
+
+# conditional image captioning
+text = "a photography of"
+inputs = processor(raw_image, text, return_tensors="pt")
+
+out = model.generate(**inputs)
+print(processor.decode(out[0], skip_special_tokens=True))
+
+# unconditional image captioning
+inputs = processor(raw_image, return_tensors="pt")
+
+out = model.generate(**inputs)
+print(processor.decode(out[0], skip_special_tokens=True))
+```
+- **git-base:** `microsoft/git-base` — это базовая по размеру версия модели GIT (GenerativeImage2Text), декодера-трансформера, обученного генерировать текстовые описания изображений. Она принимает на вход и токены изображения, и текстовые токены, предсказывая следующий текстовый токен на основе и изображения, и предыдущего текста. Это делает её подходящей для задач вроде генерации подписей к изображениям и видео. Существуют дообученные версии вроде `microsoft/git-base-coco` и `microsoft/git-base-textcaps` для конкретных датасетов, а базовая модель предлагает отправную точку для дальнейшей кастомизации. Вы можете использовать модель git-base в Hugging Face следующим образом:
+```python
+from transformers import AutoProcessor, AutoModelForCausalLM
+import requests
+from PIL import Image
+
+processor = AutoProcessor.from_pretrained("microsoft/git-base-coco")
+model = AutoModelForCausalLM.from_pretrained("microsoft/git-base-coco")
+
+url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+image = Image.open(requests.get(url, stream=True).raw)
+
+pixel_values = processor(images=image, return_tensors="pt").pixel_values
+
+generated_ids = model.generate(pixel_values=pixel_values, max_length=50)
+generated_caption = processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+print(generated_caption)
+```
+
+Подробнее о том, как обучать и использовать модели генерации подписей к изображениям в библиотеках Hugging Face `transformers`, читайте [здесь.](https://huggingface.co/docs/transformers/v4.36.1/en/tasks/image_captioning)
+
+## Поиск изображение–текст
+![Поиск изображение–текст](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/multimodal_fusion_text_vision/image_text_retrieval.png)
+*Пример входа (текстовый запрос) и выхода (изображение) для поиска текст–изображение. [[1]](#pretraining-paper)*
+- **Входы:**
+    - Изображения: изображение в различных форматах (например, JPEG, PNG).
+    - Текст: текст на естественном языке, обычно в виде подписей, описаний или ключевых слов, связанных с изображениями.
+- **Выходы:** 
+    - Релевантные изображения: когда дан текстовый запрос, система возвращает ранжированный список изображений, наиболее релевантных тексту.
+    - Релевантный текст: когда дан запрос-изображение, система возвращает ранжированный список текстовых описаний или подписей, которые лучше всего описывают изображение.
+- **Задачи:**
+    - Поиск изображение–текст: дан изображение как вход — извлечь текстовые описания или подписи, которые точно описывают его содержание.
+    - Поиск текст–изображение: дан текстовый запрос — извлечь изображения, которые визуально соответствуют концепциям и сущностям, упомянутым в тексте.
+
+Одна из самых популярных моделей для поиска изображение–текст — CLIP.
+- **CLIP (Contrastive Language-Image Pretraining):** Она превосходно справляется с поиском изображение–текст, опираясь на общее пространство эмбеддингов. Через контрастивное обучение она предобучается на крупномасштабных датасетах изображений и текстов, позволяя модели отображать разнообразные концепции в общее пространство. CLIP использует подход контрастивного обучения при предобучении, где учится отображать изображения и текст в общее пространство эмбеддингов. Это общее пространство позволяет напрямую сравнивать две модальности, делая возможным эффективный и точный поиск. В поиске изображение–текст CLIP можно применить, кодируя изображения и текст в общее пространство эмбеддингов, а сходство между изображением и текстовым запросом измеряется близостью их соответствующих эмбеддингов. Универсальность модели возникает из её способности схватывать семантические отношения без дообучения под конкретную задачу, делая её эффективной для приложений от поиска изображений по содержанию до интерпретации запросов на естественном языке к изображениям. Вы можете использовать CLIP в Hugging Face для поиска изображение–текст следующим образом:
+```python
+from PIL import Image
+import requests
+
+from transformers import CLIPProcessor, CLIPModel
+
+model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32")
+processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+
+url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+image = Image.open(requests.get(url, stream=True).raw)
+
+inputs = processor(
+    text=["a photo of a cat", "a photo of a dog"],
+    images=image,
+    return_tensors="pt",
+    padding=True,
+)
+
+outputs = model(**inputs)
+logits_per_image = outputs.logits_per_image  # this is the image-text similarity score
+probs = logits_per_image.softmax(
+    dim=1
+)  # we can take the softmax to get the label probabilities
+```
+Подробнее о том, как использовать CLIP для поиска изображение–текст в Hugging Face, читайте [здесь](https://huggingface.co/docs/transformers/model_doc/clip#resources).
+
+## Визуальное заземление
+![Визуальное заземление](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/multimodal_fusion_text_vision/visual_grounding.jpg)
+*Пример входа (изображение + текст) и выхода (ограничивающие прямоугольники). (a) Phrase Grounding (b) Expression Comprehension. [[1]](#pretraining-paper)*
+- **Входы:**
+    - Изображение: визуальное представление сцены или объекта.
+    - Запрос на естественном языке: текстовое описание или вопрос, который ссылается на конкретную часть изображения.
+
+- **Выход:** Ограничивающий прямоугольник или маска сегментации: пространственный регион внутри изображения, который соответствует объекту или области, описанной в запросе. Обычно это представляется как координаты или выделенный регион.
+- **Задача:** Локализация релевантного объекта или региона: модель должна правильно идентифицировать ту часть изображения, которая соответствует запросу. Это включает понимание и визуального содержания изображения, и лингвистического смысла запроса.
+
+Теперь посмотрим на некоторые популярные модели визуального заземления (детекции объектов) в Hugging Face.
+- **OWL-ViT:** OWL-ViT (Vision Transformer for Open-World Localization) — мощная модель детекции объектов, построенная на стандартной архитектуре Vision Transformer и обученная на крупномасштабных парах изображение–текст. Она превосходно справляется с детекцией «открытого словаря», то есть может идентифицировать объекты, которых нет в её обучающих данных, на основе текстовых описаний. Опираясь на контрастивное предобучение и дообучение, OWL-ViT достигает впечатляющего качества и в zero-shot (направляемых текстом), и в one-shot (направляемых изображением) задачах детекции, делая её универсальным инструментом гибкого поиска и идентификации на изображениях. Вы можете использовать OWL-ViT в Hugging Face следующим образом:
+```python
+import requests
+from PIL import Image
+import torch
+
+from transformers import OwlViTProcessor, OwlViTForObjectDetection
+
+processor = OwlViTProcessor.from_pretrained("google/owlvit-base-patch32")
+model = OwlViTForObjectDetection.from_pretrained("google/owlvit-base-patch32")
+
+url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+image = Image.open(requests.get(url, stream=True).raw)
+texts = [["a photo of a cat", "a photo of a dog"]]
+inputs = processor(text=texts, images=image, return_tensors="pt")
+outputs = model(**inputs)
+
+# Target image sizes (height, width) to rescale box predictions [batch_size, 2]
+target_sizes = torch.Tensor([image.size[::-1]])
+# Convert outputs (bounding boxes and class logits) to COCO API
+results = processor.post_process_object_detection(
+    outputs=outputs, threshold=0.1, target_sizes=target_sizes
+)
+
+i = 0  # Retrieve predictions for the first image for the corresponding text queries
+text = texts[i]
+boxes, scores, labels = results[i]["boxes"], results[i]["scores"], results[i]["labels"]
+
+# Print detected objects and rescaled box coordinates
+for box, score, label in zip(boxes, scores, labels):
+    box = [round(i, 2) for i in box.tolist()]
+    print(
+        f"Detected {text[label]} with confidence {round(score.item(), 3)} at location {box}"
+    )
+```
+- **Grounding DINO[[3]](#grounding-dino):** Она сочетает детектор объектов на основе трансформера (DINO) с «заземлённым предобучением», чтобы создать современную модель zero-shot детекции объектов. Это значит, что она может идентифицировать объекты, даже если их не было в обучающих данных, благодаря способности понимать и изображения, и входы на человеческом языке (например, названия категорий или описания). Её архитектура сочетает текстовый и визуальный бэкбоны, усилитель признаков, выбор запросов, направляемый языком, и кросс-модальный декодер, достигая впечатляющих результатов на бенчмарках вроде COCO и LVIS. По сути, Grounding DINO берёт визуальную информацию, связывает её с текстовыми описаниями и затем использует это понимание, чтобы указывать объекты даже внутри совершенно новых категорий.
+Вы можете попробовать модель Grounding DINO в Google Colab [здесь](https://colab.research.google.com/github/roboflow-ai/notebooks/blob/main/notebooks/zero-shot-object-detection-with-grounding-dino.ipynb).
+
+## Генерация изображения по тексту
+![Генерация текст–изображение](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/multimodal_fusion_text_vision/text_image_generation.png)
+*Иллюстрация авторегрессионных и диффузионных моделей для генерации текст–изображение.[[1]](#pretraining-paper)*
+- **Авторегрессионные модели:** Эти модели трактуют задачу как перевод текстовых описаний в последовательности токенов изображения — подобно тому, как языковые модели генерируют предложения. Как кусочки пазла, эти токены, созданные токенизаторами изображений вроде VQ-VAE, представляют базовые признаки изображения. Модель использует архитектуру энкодер–декодер: энкодер извлекает информацию из текстового промпта, а декодер, направляемый этой информацией, предсказывает по одному токену изображения за раз, постепенно строя финальное изображение пиксель за пикселем. Этот подход позволяет высокий контроль и детализацию, но сталкивается с трудностями при длинных сложных промптах и может быть медленнее альтернативных методов вроде диффузионных моделей. Процесс генерации показан на рисунке выше (a).
+
+- **Модели Stable Diffusion:** Модели Stable Diffusion используют технику «Latent Diffusion»: они строят изображения из шума, постепенно его шумоподавляя, направляемые текстовым промптом и замороженным текстовым энкодером CLIP. Лёгкая архитектура с бэкбоном UNet и энкодером CLIP позволяет генерацию изображений на GPU, а фокус на латентном пространстве снижает потребление памяти. Эта уникальная постановка даёт разнообразное художественное выражение, переводя текстовые входы в фотореалистичные и воображаемые визуалы. Процесс генерации показан на рисунке выше (b).
+
+Теперь посмотрим, как можно использовать модели генерации текст–изображение в Hugging Face.
+
+Установите библиотеку `diffusers`:
+```bash
+pip install diffusers --upgrade
+```
+
+Кроме того, убедитесь, что установлены transformers, safetensors, accelerate, а также invisible watermark:
+```bash
+pip install invisible_watermark transformers accelerate safetensors
+```
+Чтобы просто использовать базовую модель, вы можете запустить:
+```python
+from diffusers import DiffusionPipeline
+import torch
+
+pipe = DiffusionPipeline.from_pretrained(
+    "stabilityai/stable-diffusion-xl-base-1.0",
+    torch_dtype=torch.float16,
+    use_safetensors=True,
+    variant="fp16",
+)
+pipe.to("cuda")
+
+prompt = "An astronaut riding a unicorn"
+
+images = pipe(prompt=prompt).images[0]
+```
+
+Чтобы узнать больше о моделях генерации текст–изображение, обратитесь к [курсу Diffusers](https://huggingface.co/docs/diffusers/training/overview) Hugging Face.
+
+Теперь вы знаете некоторые популярные задачи и модели, связанные с модальностями изображения и текста. Но вы можете задаваться вопросом, как обучать или дообучать под упомянутые выше задачи. Поэтому давайте кратко взглянем на обучение моделей зрения и языка.
+
+## Краткий взгляд на предобученные модели зрения и языка
+![Фреймворк VLP](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/multimodal_fusion_text_vision/vlp_framework.png)
+*Общий фреймворк для моделей зрения и языка на основе трансформеров. [[1]](#pretraining-paper)*
+
+Дана пара изображение–текст: модель VL сначала извлекает текстовые признаки через текстовый энкодер и визуальные признаки через визуальный энкодер соответственно. Текстовые и визуальные признаки затем подаются в модуль мультимодального слияния, чтобы произвести кросс-модальные представления, которые затем опционально подаются в декодер перед генерацией финальных выходов. Иллюстрация этого общего фреймворка показана на рисунке выше. Во многих случаях нет чётких границ между бэкбонами изображения/текста, модулем мультимодального слияния и декодером.
+
+Поздравляем! Вы дошли до конца. Теперь — к следующему разделу, чтобы узнать больше о предобученных моделях зрения и языка.
+
+## Источники
+1. [Vision-Language Pre-training: Basics, Recent Advances, and Future Trends](https://arxiv.org/abs/2210.09263)<a id="pretraining-paper"></a>
+2. [Document Collection Visual Question Answering](https://arxiv.org/abs/2104.14336)<a id="doc-vqa-paper"></a>
+3. [Grounding DINO: Marrying DINO with Grounded Pre-Training for Open-Set Object Detection](https://arxiv.org/abs/2303.05499)<a id="grounding-dino"></a>

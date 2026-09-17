@@ -1,0 +1,555 @@
+# Трансформеры зрения для детекции объектов
+
+Этот раздел описывает, как задачи детекции объектов решаются с помощью трансформеров зрения (Vision Transformers). Мы разберём, как дообучать существующие предобученные модели детекции объектов под наш сценарий. Прежде чем начать, загляните в это Hugging Face Space, где можно поиграть с финальным результатом.
+
+<iframe
+	src="https://hf-vision-finetuning-demo-for-object-detection.hf.space/"
+	frameborder="0"
+	width="850"
+	height="450">
+</iframe>
+
+## Введение
+
+![Пример детекции объектов](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/object_detection_wiki.png)
+
+Детекция объектов — задача компьютерного зрения, которая состоит в идентификации и локализации объектов на изображении или в видео. Она включает два основных шага:
+
+- Во-первых, распознать типы присутствующих объектов (например, машины, люди или животные).
+- Во-вторых, определить их точные положения, нарисовав вокруг них ограничивающие прямоугольники.
+
+Эти модели обычно получают изображения (статические или кадры из видео) как входы, причём на каждом изображении присутствует несколько объектов. Например, рассмотрим изображение, содержащее несколько объектов: машины, люди, велосипеды и так далее. Обработав вход, эти модели выдают набор чисел, которые передают следующую информацию:
+
+- Положение объекта (координаты XY ограничивающего прямоугольника).
+- Класс объекта.
+
+Вокруг детекции объектов много применений. Один из самых значимых примеров — область автономного вождения, где детекцию объектов используют, чтобы детектировать разные объекты (пешеходов, дорожные знаки, светофоры и т. д.) вокруг автомобиля, которые становятся одним из входов для принятия решений.
+
+Чтобы глубже понять внутреннее устройство детекции объектов, загляните в нашу [отдельную главу](https://huggingface.co/learn/computer-vision-course/unit6/basic-cv-tasks/object_detection) о детекции объектов 🤗.
+
+### Зачем дообучать модели в детекции объектов 🤔
+
+Стоит ли строить новую модель или изменять существующую? Это отличный вопрос. Обучение модели детекции объектов с нуля означает:
+
+- Снова и снова делать уже проделанные исследования.
+- Писать повторяющийся код модели, обучать её и поддерживать разные репозитории для разных сценариев.
+- Много экспериментов и траты ресурсов.
+
+Вместо всего этого возьмите хорошо работающую предобученную модель (модель, которая отлично распознаёт общие признаки) и подстройте или перенастройте её веса (или часть её весов), чтобы адаптировать её под ваш сценарий. Мы полагаем или предполагаем, что предобученная модель уже достаточно научилась извлекать значимые признаки внутри изображения, чтобы локализовать и классифицировать объекты. Поэтому если вводят новые объекты, ту же модель можно обучить в течение небольшого времени и с небольшими вычислениями, чтобы она начала детектировать эти новые объекты с помощью уже выученных и новых признаков.
+
+К концу этого туториала вы должны уметь собрать полный пайплайн (от загрузки датасетов, дообучения модели и инференса) для сценария детекции объектов.
+
+## Установка необходимых библиотек
+
+Начнём с установки. Просто выполните ячейки ниже, чтобы установить необходимые пакеты. В этом туториале мы будем использовать Hugging Face Transformers и PyTorch.
+
+```bash
+!pip install -U -q datasets transformers[torch] evaluate timm albumentations accelerate
+```
+
+## Сценарий
+
+Чтобы сделать этот туториал интереснее, рассмотрим пример из реальной жизни. Представьте такой сценарий: строителям нужна максимальная безопасность при работе на строительных площадках. Базовый протокол безопасности требует носить каску постоянно. Поскольку строителей много, трудно следить за каждым всё время.
+
+Но если у нас будет система камер, которая сможет в реальном времени детектировать людей и то, надета ли на человеке каска, это было бы здорово, правда?
+
+Поэтому мы собираемся дообучить легковесную модель детекции объектов именно для этого. Поехали.
+
+
+### Датасет
+
+Для сценария выше мы используем датасет [hardhat](https://huggingface.co/datasets/hf-vision/hardhat), предоставленный [Northeastern University China](https://dataverse.harvard.edu/dataset.xhtml?persistentId=doi:10.7910/DVN/7CBGOS). Мы можем скачать и загрузить этот датасет с помощью 🤗 `datasets`.
+
+```python
+from datasets import load_dataset
+
+dataset = load_dataset("anindya64/hardhat")
+dataset
+```
+
+Это даст вам следующую структуру данных:
+
+```
+DatasetDict({
+    train: Dataset({
+        features: ['image', 'image_id', 'width', 'height', 'objects'],
+        num_rows: 5297
+    })
+    test: Dataset({
+        features: ['image', 'image_id', 'width', 'height', 'objects'],
+        num_rows: 1766
+    })
+})
+```
+
+Выше — [DatasetDict](https://huggingface.co/docs/datasets/v2.17.1/en/package_reference/main_classes#datasets.DatasetDict), эффективная dict-подобная структура, содержащая весь датасет в разбиениях train и test. Как видно, под каждым разбиением (train и test) есть `features` и `num_rows`. В features есть `image` — [объект Pillow](https://realpython.com/image-processing-with-the-python-pillow-library/), id изображения, высота и ширина, и objects.
+Теперь посмотрим, как выглядит каждая точка данных (в train/test). Для этого выполните следующую строку:
+
+```python
+dataset["train"][0]
+```
+
+И это даст вам следующую структуру:
+
+```
+{'image': <PIL.JpegImagePlugin.JpegImageFile image mode=RGB size=500x375>,
+ 'image_id': 1,
+ 'width': 500,
+ 'height': 375,
+ 'objects': {'id': [1, 1],
+  'area': [3068.0, 690.0],
+  'bbox': [[178.0, 84.0, 52.0, 59.0], [111.0, 144.0, 23.0, 30.0]],
+  'category': ['helmet', 'helmet']}}
+```
+
+Как видно, `objects` — это ещё один dict, содержащий id объектов (здесь это id классов), площадь объектов, координаты ограничивающего прямоугольника (`bbox`) и категорию (или метку). Вот более подробное объяснение каждого из ключей и значений элемента данных.
+
+
+- `image`: Это объект Pillow Image, который помогает посмотреть на изображение напрямую, ещё до загрузки из пути.
+- `image_id`: Обозначает, какой по номеру это изображение из train-файла.
+- `width`: Ширина изображения.
+- `height`: Высота изображения.
+- `objects`:  Ещё один словарь, содержащий информацию об аннотации. Он содержит следующее:
+    - `id`: Список, где длина списка обозначает число объектов, а значение каждого — индекс класса.
+    - `area`: Площадь объекта.
+    - `bbox`: Обозначает координаты ограничивающего прямоугольника объекта.
+    - `category`: Класс (строка) объекта.
+
+Теперь правильно извлечём train- и test-выборки. В этом туториале у нас около 5000 обучающих образцов и 1700 тестовых.
+
+```python
+# First, extract out the train and test set
+
+train_dataset = dataset["train"]
+test_dataset = dataset["test"]
+```
+
+Теперь, когда мы знаем, что содержит точка данных, начнём с отрисовки этого образца. Сначала нарисуем изображение, а затем также нарисуем соответствующий ограничивающий прямоугольник.
+
+Вот что мы собираемся сделать:
+
+1. Получить изображение и его высоту и ширину.
+2. Создать объект draw, который может легко рисовать текст и линии на изображении.
+3. Получить словарь annotations из образца.
+4. Пройти по нему.
+5. Для каждого получить координаты ограничивающего прямоугольника: x (где ограничивающий прямоугольник начинается горизонтально), y (где ограничивающий прямоугольник начинается вертикально), w (ширина ограничивающего прямоугольника), h (высота ограничивающего прямоугольника).
+6. Теперь, если измерения ограничивающего прямоугольника нормализованы, масштабировать их, иначе оставить как есть.
+7. И наконец нарисовать прямоугольник и текст категории класса.
+
+```python 
+import numpy as np
+from PIL import Image, ImageDraw
+
+
+def draw_image_from_idx(dataset, idx):
+    sample = dataset[idx]
+    image = sample["image"]
+    annotations = sample["objects"]
+    draw = ImageDraw.Draw(image)
+    width, height = sample["width"], sample["height"]
+
+    for i in range(len(annotations["id"])):
+        box = annotations["bbox"][i]
+        class_idx = annotations["id"][i]
+        x, y, w, h = tuple(box)
+        if max(box) > 1.0:
+            x1, y1 = int(x), int(y)
+            x2, y2 = int(x + w), int(y + h)
+        else:
+            x1 = int(x * width)
+            y1 = int(y * height)
+            x2 = int((x + w) * width)
+            y2 = int((y + h) * height)
+        draw.rectangle((x1, y1, x2, y2), outline="red", width=1)
+        draw.text((x1, y1), annotations["category"][i], fill="white")
+    return image
+
+
+draw_image_from_idx(dataset=train_dataset, idx=10)
+```
+
+У нас есть функция, чтобы нарисовать одно изображение; напишем простую функцию, используя её, чтобы нарисовать несколько изображений. Это поможет нам с некоторым анализом.
+
+```python
+import matplotlib.pyplot as plt
+
+
+def plot_images(dataset, indices):
+    """
+    Plot images and their annotations.
+    """
+    num_rows = len(indices) // 3
+    num_cols = 3
+    fig, axes = plt.subplots(num_rows, num_cols, figsize=(15, 10))
+
+    for i, idx in enumerate(indices):
+        row = i // num_cols
+        col = i % num_cols
+
+        # Draw image
+        image = draw_image_from_idx(dataset, idx)
+
+        # Display image on the corresponding subplot
+        axes[row, col].imshow(image)
+        axes[row, col].axis("off")
+
+    plt.tight_layout()
+    plt.show()
+
+
+# Now use the function to plot images
+
+plot_images(train_dataset, range(9))
+```
+Выполнение функции даст нам красивый коллаж, показанный ниже.
+
+![отрисовка входных изображений](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/object_detection_train_image_with_annotation_plots.png)
+
+## AutoImageProcessor
+
+Перед дообучением модели нужно предобработать данные так, чтобы они точно соответствовали подходу, использованному во время предобучения. Hugging Face [AutoImageProcessor](https://huggingface.co/docs/transformers/v4.36.0/en/model_doc/auto#transformers.AutoImageProcessor) берёт на себя обработку данных изображения, чтобы создать `pixel_values`, `pixel_mask` и `labels`, с которыми может обучаться модель DETR.
+
+Теперь создадим экземпляр image processor из того же чекпоинта, который хотим использовать, чтобы дообучить нашу модель.
+
+```python
+from transformers import AutoImageProcessor
+
+checkpoint = "facebook/detr-resnet-50-dc5"
+image_processor = AutoImageProcessor.from_pretrained(checkpoint)
+```
+
+## Предобработка датасета
+
+Перед передачей изображений в `image_processor` давайте также применим разные типы аугментаций к изображениям вместе с соответствующими ограничивающими прямоугольниками.
+
+Простыми словами, аугментации — это набор случайных преобразований вроде поворотов, изменения размера и т. д. Их применяют, чтобы получить больше образцов и сделать модель зрения более устойчивой к разным условиям изображения. Мы используем библиотеку [albumentations](https://github.com/albumentations-team/albumentations), чтобы этого достичь. Она позволяет создавать случайные преобразования изображений, чтобы размер выборки для обучения увеличился.
+
+```python
+import albumentations
+import numpy as np
+import torch
+
+transform = albumentations.Compose(
+    [
+        albumentations.Resize(480, 480),
+        albumentations.HorizontalFlip(p=1.0),
+        albumentations.RandomBrightnessContrast(p=1.0),
+    ],
+    bbox_params=albumentations.BboxParams(format="coco", label_fields=["category"]),
+)
+```
+
+После инициализации всех преобразований нужно сделать функцию, которая форматирует аннотации и возвращает список аннотаций в очень конкретном формате.
+
+Это потому, что `image_processor` ожидает аннотации в следующем формате: `{'image_id': int, 'annotations': List[Dict]}`, где каждый словарь — аннотация объекта COCO.
+
+```python
+def formatted_anns(image_id, category, area, bbox):
+    annotations = []
+    for i in range(0, len(category)):
+        new_ann = {
+            "image_id": image_id,
+            "category_id": category[i],
+            "isCrowd": 0,
+            "area": area[i],
+            "bbox": list(bbox[i]),
+        }
+        annotations.append(new_ann)
+
+    return annotations
+```
+
+Наконец, мы объединяем преобразования изображения и аннотаций, чтобы выполнять преобразования по всему батчу датасета.
+
+Вот финальный код для этого:
+
+```python
+# transforming a batch
+
+
+def transform_aug_ann(examples):
+    image_ids = examples["image_id"]
+    images, bboxes, area, categories = [], [], [], []
+    for image, objects in zip(examples["image"], examples["objects"]):
+        image = np.array(image.convert("RGB"))[:, :, ::-1]
+        out = transform(image=image, bboxes=objects["bbox"], category=objects["id"])
+
+        area.append(objects["area"])
+        images.append(out["image"])
+        bboxes.append(out["bboxes"])
+        categories.append(out["category"])
+
+    targets = [
+        {"image_id": id_, "annotations": formatted_anns(id_, cat_, ar_, box_)}
+        for id_, cat_, ar_, box_ in zip(image_ids, categories, area, bboxes)
+    ]
+
+    return image_processor(images=images, annotations=targets, return_tensors="pt")
+```
+
+Наконец, всё, что нужно сделать, — применить эту функцию предобработки ко всему датасету. Это можно сделать с помощью метода Hugging Face 🤗 [Datasets with transform](https://huggingface.co/docs/datasets/v2.15.0/en/package_reference/main_classes#datasets.Dataset.with_transform).
+
+```python
+# Apply transformations for both train and test dataset
+
+train_dataset_transformed = train_dataset.with_transform(transform_aug_ann)
+test_dataset_transformed = test_dataset.with_transform(transform_aug_ann)
+```
+
+Теперь посмотрим, как выглядит преобразованный образец обучающего датасета:
+
+```python
+train_dataset_transformed[0]
+```
+
+Это вернёт словарь тензоров. Здесь нам в основном нужны `pixel_values`, которые представляют изображение, `pixel_mask` — маски внимания — и `labels`. Вот как выглядит одна точка данных:
+
+```
+{'pixel_values': tensor([[[-0.1657, -0.1657, -0.1657,  ..., -0.3369, -0.4739, -0.5767],
+          [-0.1657, -0.1657, -0.1657,  ..., -0.3369, -0.4739, -0.5767],
+          [-0.1657, -0.1657, -0.1828,  ..., -0.3541, -0.4911, -0.5938],
+          ...,
+          [-0.4911, -0.5596, -0.6623,  ..., -0.7137, -0.7650, -0.7993],
+          [-0.4911, -0.5596, -0.6794,  ..., -0.7308, -0.7993, -0.8335],
+          [-0.4911, -0.5596, -0.6794,  ..., -0.7479, -0.8164, -0.8507]],
+ 
+         [[-0.0924, -0.0924, -0.0924,  ...,  0.0651, -0.0749, -0.1800],
+          [-0.0924, -0.0924, -0.0924,  ...,  0.0651, -0.0924, -0.2150],
+          [-0.0924, -0.0924, -0.1099,  ...,  0.0476, -0.1275, -0.2500],
+          ...,
+          [-0.0924, -0.1800, -0.3200,  ..., -0.4426, -0.4951, -0.5301],
+          [-0.0924, -0.1800, -0.3200,  ..., -0.4601, -0.5126, -0.5651],
+          [-0.0924, -0.1800, -0.3200,  ..., -0.4601, -0.5301, -0.5826]],
+ 
+         [[ 0.1999,  0.1999,  0.1999,  ...,  0.6705,  0.5136,  0.4091],
+          [ 0.1999,  0.1999,  0.1999,  ...,  0.6531,  0.4962,  0.3916],
+          [ 0.1999,  0.1999,  0.1825,  ...,  0.6356,  0.4614,  0.3568],
+          ...,
+          [ 0.4788,  0.3916,  0.2696,  ...,  0.1825,  0.1302,  0.0953],
+          [ 0.4788,  0.3916,  0.2696,  ...,  0.1651,  0.0953,  0.0605],
+          [ 0.4788,  0.3916,  0.2696,  ...,  0.1476,  0.0779,  0.0431]]]),
+ 'pixel_mask': tensor([[1, 1, 1,  ..., 1, 1, 1],
+         [1, 1, 1,  ..., 1, 1, 1],
+         [1, 1, 1,  ..., 1, 1, 1],
+         ...,
+         [1, 1, 1,  ..., 1, 1, 1],
+         [1, 1, 1,  ..., 1, 1, 1],
+         [1, 1, 1,  ..., 1, 1, 1]]),
+ 'labels': {'size': tensor([800, 800]), 'image_id': tensor([1]), 'class_labels': tensor([1, 1]), 'boxes': tensor([[0.5920, 0.3027, 0.1040, 0.1573],
+         [0.7550, 0.4240, 0.0460, 0.0800]]), 'area': tensor([8522.2217, 1916.6666]), 'iscrowd': tensor([0, 0]), 'orig_size': tensor([480, 480])}}
+```
+
+Мы почти у цели 🚀. Как последний шаг предобработки нужно написать собственный `collate_fn`. Что такое `collate_fn`?
+
+`collate_fn` отвечает за то, чтобы взять список образцов из датасета и преобразовать их в батч, подходящий для входного формата модели.
+
+В общем `DataCollator` обычно выполняет такие задачи, как паддинг, усечение и т. д. В собственной функции collate мы часто определяем, что и как хотим группировать данные в батчи, или просто как представлять каждый батч.
+
+Data collator в основном собирает данные вместе, а затем предобрабатывает их. Давайте сделаем нашу функцию collate.
+
+```python
+def collate_fn(batch):
+    pixel_values = [item["pixel_values"] for item in batch]
+    encoding = image_processor.pad(pixel_values, return_tensors="pt")
+    labels = [item["labels"] for item in batch]
+    batch = {}
+    batch["pixel_values"] = encoding["pixel_values"]
+    batch["pixel_mask"] = encoding["pixel_mask"]
+    batch["labels"] = labels
+    return batch
+```
+
+## Обучение модели DETR
+
+Итак, вся тяжёлая работа уже сделана. Теперь осталось собрать части пазла одну за другой. Поехали!
+
+Процедура обучения включает следующие шаги:
+
+1. Загрузка базовой (предобученной) модели с [AutoModelForObjectDetection](https://huggingface.co/docs/transformers/v4.36.0/en/model_doc/auto#transformers.AutoModelForObjectDetection), используя тот же чекпоинт, что и при предобработке.
+
+2. Определение всех гиперпараметров и дополнительных аргументов внутри [TrainingArguments](https://huggingface.co/docs/transformers/v4.36.0/en/main_classes/trainer#transformers.TrainingArguments).
+
+3. Передача аргументов обучения внутрь [Hugging Face Trainer](https://huggingface.co/docs/transformers/v4.36.0/en/main_classes/trainer#transformers.Trainer) вместе с моделью, датасетом и изображением.
+
+4. Вызов метода `train()` и дообучение модели.
+
+> Загружая модель из того же чекпоинта, который вы использовали для предобработки, не забудьте передать отображения `label2id` и `id2label`, которые вы создали ранее из метаданных датасета. Кроме того, мы указываем `ignore_mismatched_sizes=True`, чтобы заменить существующую голову классификации новой.
+
+```python
+from transformers import AutoModelForObjectDetection
+
+id2label = {0: "head", 1: "helmet", 2: "person"}
+label2id = {v: k for k, v in id2label.items()}
+
+
+model = AutoModelForObjectDetection.from_pretrained(
+    checkpoint,
+    id2label=id2label,
+    label2id=label2id,
+    ignore_mismatched_sizes=True,
+)
+```
+
+Прежде чем идти дальше, войдите в Hugging Face Hub, чтобы загружать модель на лету во время обучения. Так вам не нужно будет самостоятельно обрабатывать чекпоинты и сохранять их где-то.
+```python
+from huggingface_hub import notebook_login
+
+notebook_login()
+```
+
+После этого начнём обучение модели. Начнём с определения аргументов обучения и объекта trainer, который использует эти аргументы для обучения, как показано здесь:
+
+
+```python
+from transformers import TrainingArguments
+from transformers import Trainer
+
+# Define the training arguments
+
+training_args = TrainingArguments(
+    output_dir="detr-resnet-50-hardhat-finetuned",
+    per_device_train_batch_size=8,
+    num_train_epochs=3,
+    max_steps=1000,
+    fp16=True,
+    save_steps=10,
+    logging_steps=30,
+    learning_rate=1e-5,
+    weight_decay=1e-4,
+    save_total_limit=2,
+    remove_unused_columns=False,
+    push_to_hub=True,
+)
+
+# Define the trainer
+
+trainer = Trainer(
+    model=model,
+    args=training_args,
+    data_collator=collate_fn,
+    train_dataset=train_dataset_transformed,
+    eval_dataset=test_dataset_transformed,
+    tokenizer=image_processor,
+)
+
+trainer.train()
+```
+
+Когда обучение закончится, модель можно удалить, потому что чекпоинты уже загружены в Hugging Face Hub.
+
+```python
+del model
+torch.cuda.synchronize()
+```
+
+### Тестирование и инференс
+
+Теперь попробуем выполнить инференс нашей новой дообученной модели. В этом туториале мы будем тестировать на этом изображении:
+
+![тестовое входное изображение](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/test_input_for_od.png)
+
+Сначала напишем очень простой код инференса детекции объектов для некоторых новых изображений. Начнём с инференса для одного изображения, а затем соберём всё вместе и сделаем из этого функцию.
+
+```python
+import requests
+from transformers import pipeline
+
+# download a sample image
+
+url = "https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/test-helmet-object-detection.jpg"
+image = Image.open(requests.get(url, stream=True).raw)
+
+# make the object detection pipeline
+
+obj_detector = pipeline(
+    "object-detection", model="anindya64/detr-resnet-50-dc5-hardhat-finetuned"
+)
+results = obj_detector(train_dataset[0]["image"])
+
+print(results)
+```
+
+Теперь сделаем очень простую функцию, чтобы нарисовать результаты на нашем изображении. Из results мы получаем score, label и соответствующие координаты ограничивающих прямоугольников, которые используем, чтобы рисовать на изображении.
+
+```python
+def plot_results(image, results, threshold=0.7):
+    image = Image.fromarray(np.uint8(image))
+    draw = ImageDraw.Draw(image)
+    for result in results:
+        score = result["score"]
+        label = result["label"]
+        box = list(result["box"].values())
+        if score > threshold:
+            x, y, x2, y2 = tuple(box)
+            draw.rectangle((x, y, x2, y2), outline="red", width=1)
+            draw.text((x, y), label, fill="white")
+            draw.text(
+                (x + 0.5, y - 0.5),
+                text=str(score),
+                fill="green" if score > 0.7 else "red",
+            )
+    return image
+```
+
+И наконец используем эту функцию для того же тестового изображения.
+
+
+```
+results = obj_detector(image)
+plot_results(image, results)
+```
+
+И это нарисует выход ниже:
+
+![отрисовка тестового выходного изображения](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/test_output_for_od.png)
+
+Теперь соберём всё вместе в простую функцию.
+
+```python
+def predict(image, pipeline, threshold=0.7):
+    results = pipeline(image)
+    return plot_results(image, results, threshold)
+
+
+# Let's test for another test image
+
+img = test_dataset[0]["image"]
+predict(img, obj_detector)
+```
+
+Даже нарисуем несколько изображений, используя нашу функцию инференса на небольшой тестовой выборке.
+
+```python 
+from tqdm.auto import tqdm
+
+
+def plot_images(dataset, indices):
+    """
+    Plot images and their annotations.
+    """
+    num_rows = len(indices) // 3
+    num_cols = 3
+    fig, axes = plt.subplots(num_rows, num_cols, figsize=(15, 10))
+
+    for i, idx in tqdm(enumerate(indices), total=len(indices)):
+        row = i // num_cols
+        col = i % num_cols
+
+        # Draw image
+        image = predict(dataset[idx]["image"], obj_detector)
+
+        # Display image on the corresponding subplot
+        axes[row, col].imshow(image)
+        axes[row, col].axis("off")
+
+    plt.tight_layout()
+    plt.show()
+
+
+plot_images(test_dataset, range(6))
+```
+Выполнение этой функции даст выход вроде такого:
+
+![отрисовка выхода тестовой выборки](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/sample_od_test_set_inference_output.png)
+
+Что ж, неплохо. Результаты можно улучшить, если дообучить дальше. Этот дообученный чекпоинт можно найти [здесь](hf-vision/detr-resnet-50-dc5-harhat-finetuned).

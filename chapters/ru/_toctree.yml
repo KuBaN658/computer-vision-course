@@ -1,0 +1,210 @@
+- title: Юнит 0 — Добро пожаловать
+  sections:
+  - title: Добро пожаловать в сообщественный курс по компьютерному зрению
+    local: "unit0/welcome/welcome"
+  - title: Оглавление ноутбуков
+    local: "unit0/welcome/TableOfContents"
+- title: Юнит 1 — Основы
+  sections:
+  - title: Зрение
+    local: "unit1/chapter1/motivation"
+  - title: Изображение
+    local: "unit1/image_and_imaging/image"
+  - title: Съёмка
+    local: "unit1/image_and_imaging/imaging"
+  - title: Съёмка в реальной жизни
+    local: "unit1/image_and_imaging/extension-image"
+  - title: Что такое компьютерное зрение
+    local: "unit1/chapter1/definition"
+  - title: Применения компьютерного зрения
+    local: "unit1/chapter1/applications"
+  - title: Предобработка для задач компьютерного зрения
+    local: "unit1/image_and_imaging/examples-preprocess"
+  - title: Описание признаков
+    local: "unit1/feature-extraction/feature_description"
+  - title: Сопоставление признаков
+    local: "unit1/feature-extraction/feature-matching"
+  - title: Практические применения извлечения признаков в компьютерном зрении
+    local: "unit1/feature-extraction/real-world-applications"
+- title: Юнит 2 — Свёрточные нейронные сети
+  sections:
+  - title: Введение в свёрточные нейронные сети
+    local: "unit2/cnns/introduction"
+  - title: Очень глубокие свёрточные сети для распознавания изображений большого масштаба
+    local: "unit2/cnns/vgg"
+  - title: GoogLeNet
+    local: "unit2/cnns/googlenet"
+  - title: MobileNet
+    local: "unit2/cnns/mobilenet"
+  - title: ConvNeXt — ConvNet для 2020-х (2022)
+    local: "unit2/cnns/convnext"
+  - title: Введение в трансферное обучение
+    local: "unit2/cnns/intro-transfer-learning"
+  - title: Глубже разбираем MobileNet
+    local: "unit2/cnns/mobilenetextra"
+  - title: ResNet
+    local: "unit2/cnns/resnet"
+  - title: YOLO — You Only Look Once
+    local: "unit2/cnns/yolo"
+- title: Юнит 3 — Vision Transformers
+  sections:
+  - title: Vision Transformers для классификации изображений
+    local: "unit3/vision-transformers/vision-transformers-for-image-classification"
+  - title: Swin Transformer
+    local: "unit3/vision-transformers/swin-transformer"
+  - title: Convolutional Vision Transformer (CvT)
+    local: "unit3/vision-transformers/cvt"
+  - title: Dilated Neighborhood Attention Transformer (DINAT)
+    local: "unit3/vision-transformers/dinat"
+  - title: MobileViT v2
+    local: "unit3/vision-transformers/mobilevit"
+  - title: Дообучение Vision Transformer для детекции объектов
+    local: "unit3/vision-transformers/vision-transformer-for-object-detection"
+  - title: DEtection TRansformer (DETR)
+    local: "unit3/vision-transformers/detr"
+  - title: Vision Transformers для сегментации изображений
+    local: "unit3/vision-transformers/vision-transformers-for-image-segmentation"
+  - title: OneFormer
+    local: "unit3/vision-transformers/oneformer"
+  - title: Дистилляция знаний с Vision Transformers
+    local: "unit3/vision-transformers/knowledge-distillation"
+- title: Юнит 4 — Мультимодальные модели
+  sections:
+  - title: Мультимодальные модели текста и зрения — объединяя чувства в ИИ
+    local: "unit4/multimodal-models/pre-intro"
+  - title: Мультимодальный мир
+    local: "unit4/multimodal-models/a_multimodal_world"
+  - title: Введение в модели зрения и языка
+    local: "unit4/multimodal-models/vlm-intro"
+  - title: Мультимодальные задачи и модели
+    local: "unit4/multimodal-models/tasks-models-part1"
+  - title: CLIP и родственные модели
+    local: "unit4/multimodal-models/clip-and-relatives/Introduction"
+  - title: Функции потерь
+    local: "unit4/multimodal-models/clip-and-relatives/losses"
+  - title: Contrastive Language-Image Pre-training (CLIP)
+    local: "unit4/multimodal-models/clip-and-relatives/clip"
+  - title: Мультимодальная генерация текста (BLIP)
+    local: "unit4/multimodal-models/clip-and-relatives/blip"
+  - title: Мультимодальная детекция объектов (OWL-ViT)
+    local: "unit4/multimodal-models/clip-and-relatives/owl_vit"
+  - title: Трансферное обучение мультимодальных моделей
+    local: "unit4/multimodal-models/transfer_learning"
+  - title: Дополнительное чтение и материалы
+    local: "unit4/multimodal-models/supplementary-material"
+- title: Юнит 5 — Генеративные модели
+  sections:
+  - title: Введение
+    local: "unit5/generative-models/introduction/introduction"
+  - title: Вариационные автокодировщики
+    local: "unit5/generative-models/variational_autoencoders"
+  - title: Генеративные состязательные сети
+    local: "unit5/generative-models/gans"
+  - title: Варианты StyleGAN
+    local: "unit5/generative-models/gans-vaes/stylegan"
+  - title: Введение в CycleGAN
+    local: "unit5/generative-models/practical-applications/cycle_gan"
+  - title: Введение в диффузионные модели
+    local: "unit5/generative-models/diffusion-models/introduction"
+  - title: Введение в Stable Diffusion
+    local: "unit5/generative-models/diffusion-models/stable-diffusion"
+  - title: Управление диффузионными моделями
+    local: "unit5/generative-models/diffusion-models/simple-explanation"
+  - title: Приватность, смещения и социальные вопросы
+    local: "unit5/generative-models/practical-applications/ethical-issues"
+- title: Юнит 6 — Базовые задачи компьютерного зрения
+  sections:
+  - title: Введение
+    local: "unit6/basic-cv-tasks/introduction"
+  - title: Детекция объектов
+    local: "unit6/basic-cv-tasks/object_detection"
+  - title: Сегментация изображений
+    local: "unit6/basic-cv-tasks/segmentation"
+- title: Юнит 7 — Видео и обработка видео
+  sections:
+  - title: Введение
+    local: "unit7/video-processing/introduction-to-video"
+  - title: Основы обработки видео
+    local: "unit7/video-processing/video-processing-basics"
+  - title: Мультимодальные модели для видео
+    local: "unit7/video-processing/multimodal-based-video-models"
+  - title: CNN-модели для видео
+    local: "unit7/video-processing/cnn-based-video-model"
+  - title: RNN-модели для видео
+    local: "unit7/video-processing/rnn-based-video-models"
+  - title: Модели на основе трансформеров
+    local: "unit7/video-processing/transformers-based-models"
+- title: Юнит 8 — 3D-зрение, рендеринг и реконструкция сцен
+  sections:
+  - title: Введение
+    local: "unit8/introduction/introduction"
+  - title: Применения 3D-зрения
+    local: "unit8/introduction/applications"
+  - title: Краткая история 3D-зрения
+    local: "unit8/introduction/brief_history"
+  - title: Модели камеры
+    local: "unit8/terminologies/camera-models"
+  - title: Основы линейной алгебры для 3D-данных
+    local: "unit8/terminologies/linear-algebra"
+  - title: Представления 3D-данных
+    local: "unit8/terminologies/representations"
+  - title: Метрическая и относительная монокулярная оценка глубины
+    local: "unit8/monocular_depth_estimation"
+  - title: Синтез новых ракурсов
+    local: "unit8/3d-vision/nvs"
+  - title: Введение в стереозрение
+    local: "unit8/3d_measurements_stereo_vision"
+  - title: Neural Radiance Fields (NeRF)
+    local: "unit8/nerf"
+- title: Юнит 9 — Оптимизация моделей
+  sections:
+  - title: Введение в оптимизацию моделей для развёртывания
+    local: "unit9/intro_to_model_optimization"
+  - title: Вопросы развёртывания моделей
+    local: "unit9/model_deployment"
+  - title: Инструменты и фреймворки оптимизации моделей
+    local: "unit9/tools_and_frameworks"
+- title: Юнит 10 — Создание синтетических данных
+  sections:
+  - title: Введение
+    local: "unit10/introduction"
+  - title: Синтетические датасеты
+    local: "unit10/synthetic_datasets"
+  - title: Генерация синтетических данных с помощью 3D-рендерера
+    local: "unit10/blenderProc"
+  - title: Генерация синтетических данных с помощью DCGAN
+    local: "unit10/synthetic-lung-images"
+  - title: Генерация синтетических данных диффузионными моделями
+    local: "unit10/datagen-diffusion-models"
+  - title: Сложности и возможности при использовании синтетических данных
+    local: "unit10/challenges"
+  - title: Введение в облака точек
+    local: "unit10/point_clouds"
+- title: Юнит 11 — Zero-shot компьютерное зрение
+  sections:
+  - title: Введение
+    local: "unit11/1"
+  - title: Zero-shot обучение
+    local: "unit11/2"
+- title: Юнит 12 — Этика и смещения
+  sections:
+  - title: 'Этические основы моделей компьютерного зрения'
+    local: "unit12/pre-intro"
+  - title: Введение
+    local: "unit12/introduction"
+  - title: "Этика и смещения в ИИ"
+    local: "unit12/ethics-bias-ai"
+  - title: "Усилия Hugging Face: этика и общество"
+    local: "unit12/conclusion"
+  - title: "Дополнительное чтение и материалы"
+    local: "unit12/supplementary-material"
+- title: Юнит 13 — Взгляд вперёд
+  sections:
+  - title: Retention в зрении
+    local: "unit13/retention"
+  - title: Обзор Hiera
+    local: "unit13/hiera"
+  - title: Обзор Hyena
+    local: "unit13/hyena"
+  - title: Обзор I-JEPA
+    local: "unit13/i-jepa"

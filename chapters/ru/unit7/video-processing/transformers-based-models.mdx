@@ -1,0 +1,178 @@
+# Трансформеры в обработке видео (часть 1)
+
+## Введение
+
+В этой главе мы разберём, как модель Transformers используют в обработке видео. В частности, представим Vision Transformer — успешное применение модели Transformers в области зрения. Затем объясним дополнительные соображения, которые учитывают в модели Video Vision Transformer (ViViT) для видео по сравнению с Vision Transformer для изображений. Наконец, кратко обсудим модель TimeSFormer. 
+
+**Материалы, которые полезно повторить перед чтением этого документа**:
+
+- [курс по компьютерному зрению / unit3 / vision transformers for image classification](https://huggingface.co/learn/computer-vision-course/unit3/vision-transformers/vision-transformers-for-image-classification)
+- [transformers / документация модели: ViT](https://huggingface.co/docs/transformers/main/en/model_doc/vit)
+
+## Кратко о ViT
+
+Сначала быстро взглянем на Vision Transformers: [An image is worth 16x16 words: Transformers for image recognition at scale](https://arxiv.org/abs/2010.11929) — самую базовую из успешных применений трансформеров к зрению.
+
+Аннотация статьи выглядит так:
+
+*Inspired by the Transformer scaling successes in NLP, we experiment with applying a standard Transformer directly to images, with the fewest possible modifications. To do so, we split an image into patches and provide the sequence of linear embeddings of these patches as an input to a Transformer. Image patches are treated the same way as tokens (words) in an NLP application. We train the model on image classification in supervised fashion.*
+
+<div class="flex justify-center">
+<img src="https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/transformer_based_video_model/unit7_1_vit_architecture.png" alt="Архитектура Vision Transformer">
+</div>
+<small>Архитектура ViT. Взято из <a href= "https://arxiv.org/abs/2010.11929">оригинальной статьи</a>.</small>
+
+Ключевые техники, предложенные в статье ViT, таковы:
+
+- Изображения делят на небольшие патчи, и каждый патч используют как вход модели Transformer, заменяя CNN подходом на основе трансформера.  
+
+- Каждый патч изображения линейно отображают и добавляют позиционные эмбеддинги, чтобы трансформер мог распознавать порядок патчей.  
+
+- Модель предобучают на крупномасштабных датасетах и дообучают под downstream-задачи зрения, достигая высокого качества.
+
+### Качество и ограничения
+
+<div class="flex justify-center">
+<img src="https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/transformer_based_video_model/unit7_2_vit_performance.JPG" alt="Качество Vision Transformer">
+</div>
+<small> Сравнение с SOTA-моделями. Взято из <a href="https://arxiv.org/abs/2010.11929">оригинальной статьи</a>.</small>
+
+Хотя ViT превзошла другие современные модели, обучение модели ViT требовало большого объёма вычислительной мощности. Обучение модели ViT заняло 2500 дней на TPU-v3. Если предположить, что ядро TPU-v3 стоит примерно $2 в час (более подробную информацию о ценах можно найти [здесь](https://cloud.google.com/tpu/pricing)), обучение модели один раз обойдётся в $2 x 24 часа x 2500 дней = $120 000.
+
+## Video Vision Transformer (ViViT)
+
+Как уже упоминалось, важный вопрос для ViViT, которая расширяет обработку изображений ViT до задачи классификации видео, — как обучать модель быстрее и эффективнее. Кроме того, в отличие от изображений видео содержит не только пространственную, но и временну́ю информацию, и то, как обрабатывать эту «временну́ю информацию», — ключевое соображение и направление исследований.
+
+Аннотация [статьи](https://arxiv.org/abs/2103.15691) выглядит так:
+
+*We present pure-transformer based models for video classification, drawing upon the recent success of such models in image classification. Our model extracts spatiotemporal tokens from the input video, which are then encoded by a series of transformer layers. In order to handle the long sequences of tokens encountered in video, we propose several, efficient variants of our model which factorise the spatial- and temporal-dimensions of the input. Although transformer-based models are known to only be effective when large training datasets are available, we show how we can effectively regularise the model during training and leverage pretrained image models to be able to train on comparatively small datasets. We conduct thorough ablation studies, and achieve state-of-the-art results on multiple video classification benchmarks including Kinetics 400 and 600, Epic Kitchens, Something-Something v2 and Moments in Time, outperforming prior methods based on deep 3D convolutional networks. To facilitate further research, we release code at https://github.com/google-research/scenic.*
+
+<div class="flex justify-center">
+<img src="https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/transformer_based_video_model/unit7_3_vivit_architecture.png" alt="Архитектура ViViT">
+</div>
+<small>Архитектура ViViT. Взято из <a href = "https://arxiv.org/abs/2103.15691">оригинальной статьи</a>.</small>
+
+### Вложение видеоклипов
+
+#### Что такое эмбеддинг?
+Прежде чем переходить к конкретным техникам, важно понять, что такое эмбеддинги. В машинном обучении эмбеддинги — это плотные векторные представления, которые захватывают значимые признаки входных данных в формате, который нейронные сети могут обрабатывать. Для видео нужно преобразовать сырые пиксельные данные в эти математические представления, сохраняя и пространственную информацию (что есть в каждом кадре), и временну́ю (как вещи меняются со временем).
+
+#### Почему важны видеоэмбеддинги
+Обработка видео вычислительно затратна из‑за размера и сложности. Хорошие техники вложения помогают тем, что:
+
+- снижают размерность, сохраняя важные признаки
+- захватывают временны́е отношения между кадрами
+- делают возможным эффективную обработку видеоданных нейронными сетями
+
+#### Почему фокус на Uniform Frame Sampling и Tubelet Embeddings?
+Эти две техники представляют фундаментальные подходы в обработке видео, которые стали строительными блоками для более продвинутых методов:
+
+1. Они балансируют вычислительную эффективность и сохранение информации, предлагая набор вариантов для разных задач обработки видео.
+2. Они служат базовыми методами, относительно которых более новые техники могут демонстрировать улучшение.
+3. Изучение этих подходов закладывает прочную основу в пространственно-временно́й обработке, которая важна для понимания более продвинутых методов видеоэмбеддингов.
+
+#### Uniform Frame Sampling
+
+<div class="flex justify-center">
+<img src="https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/transformer_based_video_model/unit7_4_uniform_sampling_1JPG.JPG" alt="Равномерная выборка кадров">
+</div>
+<small>Uniform Frame Sampling. Взято из <a href = "https://arxiv.org/abs/2103.15691">оригинальной статьи</a>.</small>
+
+В этом методе отображения модель равномерно выбирает некоторые кадры по временно́й оси,
+например один кадр из каждых двух. 
+
+#### Tubelet Embedding
+
+<div class="flex justify-center">
+<img src="https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/transformer_based_video_model/unit7_5_tubelet_embedding.JPG" alt="Tubelet embedding">
+</div>
+<small>Tubelet embedding. Взято из <a href = "https://arxiv.org/abs/2103.15691">оригинальной статьи</a>.</small>
+
+Альтернативный метод: из входного объёма извлекают пространственно-временны́е «тюблеты» и линейно проецируют их. Этот метод сплавляет пространственно-временну́ю информацию уже на этапе токенизации.
+
+Ранее представленные методы, такие как Uniform Frame Sampling и Tubelet Embedding, эффективны, но относительно просты. Следующие методы более продвинутые.
+
+### Трансформерные модели для видео в ViViT
+
+Оригинальная статья ViViT предлагает несколько архитектур на основе трансформеров, которые мы теперь рассмотрим по порядку.
+
+#### Модель 1: пространственно-временное внимание (Spatio-Temporal Attention)
+
+Первая модель естественным образом расширяет идею ViT на задачу классификации видео. Каждый кадр видео делят на n_w (число столбцов) x n_h (число строк) патчей изображения, получая всего n_t (число кадров) x n_w x n_h патчей. Каждый из этих патчей затем вкладывают как «пространственно-временно́й токен» — по сути небольшую единицу, представляющую и пространственную (изображение), и временну́ю (видеопоследовательность) информацию. Модель пропускает все пространственно-временны́е токены, извлечённые из видео, через энкодер трансформера. Это значит, что каждый патч, или токен, обрабатывают, чтобы понять не только его собственные признаки, но и его отношения с другими патчами во времени и пространстве. Через этот процесс, называемый «контекстуализацией», энкодер учится, как каждый патч связан с другими, захватывая паттерны положения, цвета и движения, и тем самым строит богатое, целостное понимание общего контекста видео. 
+
+**сложность : O(n_h^2 x n_w^2 x n_t^2)**
+
+Однако использование внимания по всем пространственно-временны́м токенам может привести к большим вычислительным затратам. Чтобы сделать процесс эффективнее, применяют методы вроде Uniform Frame Sampling и Tubelet Embedding, описанные ранее, которые помогают снизить эти затраты.
+
+#### Модель 2: факторизованный энкодер
+
+Подход в Model 1 был несколько неэффективен, поскольку контекстуализировал все патчи одновременно. Чтобы это улучшить, Model 2 разделяет пространственный и временно́й энкодеры последовательно.
+
+<div class="flex justify-center">
+<img src="https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/transformer_based_video_model/unit7_6_vivit_model2.JPG" alt="ViViT, модель 2">
+</div>
+<small>Factorised encoder (Model 2). Взято из <a href = "https://arxiv.org/abs/2103.15691">оригинальной статьи</a>.</small>
+
+Сначала пространственные взаимодействия контекстуализируют через Spatial Transformer Encoder(=ViT). Затем каждый кадр кодируют в один эмбеддинг и подают в Temporal Transformer Encoder(=обычный трансформер).
+
+**сложность : O(n_h^2 x n_w^2 + n_t^2)**
+
+#### Модель 3: факторизованное самовнимание
+
+<div class="flex justify-center">
+<img src="https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/transformer_based_video_model/unit7_7_vivit_model3.JPG" alt="ViViT, модель 3">
+</div>
+<small>Factorised Self-Attention (Model 3). Взято из <a href = "https://arxiv.org/abs/2103.15691">оригинальной статьи</a>.</small>
+
+В model 3 вместо вычисления multi-headed self-attention по всем парам токенов сначала вычисляют self-attention пространственно (среди всех токенов, извлечённых из одного и того же временно́го индекса). Затем вычисляют self-attention временно́ (среди всех токенов, извлечённых из одного и того же пространственного индекса). Из‑за неоднозначностей токен CLS (classification) не используют.
+
+**сложность : такая же, как у model 2**
+
+#### Модель 4: факторизованное внимание по скалярному произведению
+
+<div class="flex justify-center">
+<img src="https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/transformer_based_video_model/unit7_8_vivit_model4.JPG" alt="ViViT, модель 4">
+</div>
+<small>Factorised Dot-Product Attention (Model 4). Взято из <a href = "https://arxiv.org/abs/2103.15691">оригинальной статьи</a>.</small>
+
+В model 4 половина голов внимания работает с ключами и значениями из пространственных индексов, другая половина — с ключами и значениями из тех же временны́х индексов.
+
+**сложность : такая же, как у model 2, 3**
+
+### Эксперименты и обсуждение
+
+<div class="flex justify-center">
+<img src="https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/transformer_based_video_model/unit7_9_vivit_performance.JPG" alt="Качество модели ViViT">
+</div>
+<small>Сравнение архитектур моделей (точность Top 1). Взято из <a href = "https://arxiv.org/abs/2103.15691">оригинальной статьи</a>.</small>
+
+После сравнения Models 1, 2, 3 и 4 видно, что Model 1 достигла лучшего качества, но требовала самого долгого обучения. В то же время Model 2 показала относительно высокое качество при более коротком обучении по сравнению с Models 3 и 4, что делает её в целом самой эффективной моделью.
+
+ Модель ViViT фундаментально сталкивается с проблемой разреженности датасета. Как и Vision Transformer(ViT), ViViT требует чрезвычайно большого датасета, чтобы достичь хорошего качества. Однако такой масштаб датасета для видео часто недоступен. Учитывая, что задача обучения сложнее, подход состоит в том, чтобы сначала предобучить модель на большом датасете изображений с помощью ViT и инициализировать её этими весами. 
+
+## TimeSFormer
+
+TimeSFormer — параллельная работа с ViViT, применяющая Transformer к классификации видео. Следующие разделы объясняют каждый тип внимания.
+
+<div class="flex justify-center">
+<img src="https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/transformer_based_video_model/unit7_10_timesformer.JPG" alt="Модель TimeSFormer">
+</div>
+<small>Визуализация пяти схем пространственно-временно́го self-attention. Взято из <a href = "https://arxiv.org/abs/2102.05095">оригинальной статьи</a>.</small>
+
+- **Sparse Attention** совпадает с ViT: синий патч — это query, он контекстуализирует другие патчи внутри одного кадра.
+- **Joint Space-Time Attention** совпадает с ViViT Model 1: синий патч — это query, он контекстуализирует другие патчи по нескольким кадрам.
+- **Divided Space-Time Attention** похож на ViViT Model 3: синий патч сначала контекстуализируется временно́ с зелёными патчами в той же позиции, а затем пространственно — с другими патчами изображения в том же временно́м индексе.
+- **Sparse Local Global Attention**: избирательно объединяет локальную и глобальную информацию.
+- **Axial Attention**: обрабатывает пространственное и временно́е измерения отдельно вдоль их осей.
+
+### Обсуждение качества
+
+Механизм **Divided Space-Time Attention** показывает наиболее эффективное качество, давая лучший баланс эффективности параметров и точности на датасетах K400 и SSv2.
+
+## Заключение
+
+ViViT расширила модель ViT, чтобы эффективнее работать с видеоданными, введя разные модели — Factorized Encoder, Factorized Self-Attention и Factorized Dot-Product Attention, — все направленные на эффективную работу с пространственно-временны́ми измерениями. Аналогично TimeSFormer развилась из архитектуры ViT и использовала разнообразные механизмы внимания для работы с пространством и временем, во многом как ViViT. Ключевой вывод из этого развития — фокус на снижении значительных вычислительных затрат, связанных с применением архитектур трансформеров к анализу видео. За счёт разных техник оптимизации эти модели повышают эффективность и позволяют учиться с меньшими вычислительными ресурсами.
+
+## Дополнительные материалы
+
+- [Video Transformers: A Survey](https://arxiv.org/abs/2201.05991)

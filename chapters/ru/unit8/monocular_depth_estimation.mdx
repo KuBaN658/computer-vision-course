@@ -1,0 +1,596 @@
+# Метрическая и относительная монокулярная оценка глубины: обзор. Дообучение Depth Anything V2 👐 📚
+
+## Эволюция моделей
+
+За последнее десятилетие модели монокулярной оценки глубины прошли замечательный путь. Давайте визуально проследим эту эволюцию.
+
+Мы начинали с базовых моделей вроде этой:
+
+![image/png](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/Metric%20and%20Relative%20Monocular%20Depth%20Estimation%20An%20Overview.%20Fine-Tuning%20Depth%20Anything%20V2/depth_estimation_evolution1.png)
+Затем перешли к более сложным моделям:
+
+![image/png](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/Metric%20and%20Relative%20Monocular%20Depth%20Estimation%20An%20Overview.%20Fine-Tuning%20Depth%20Anything%20V2/depth_estimation_evolution2.png)
+
+А теперь у нас есть современная модель Depth Anything V2:
+
+![image/png](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/Metric%20and%20Relative%20Monocular%20Depth%20Estimation%20An%20Overview.%20Fine-Tuning%20Depth%20Anything%20V2/depth_estimation_evolution3.png)
+
+Впечатляет, правда?
+
+Сегодня мы разберём, как работают эти модели, и упростим сложные концепции. Более того, мы дообучим собственную модель на пользовательском датасете. «*Но подождите,*» можете спросить вы, «*зачем дообучать модель на своём датасете, если новейшая модель и так так хорошо работает в любой среде?*»
+
+Именно здесь вступают нюансы и особенности — и на них как раз сосредоточена эта статья. Если вам интересно разобраться в тонкостях монокулярной оценки глубины, читайте дальше.
+
+## Основы
+
+«*Хорошо, а что такое глубина?*» Обычно это одноканальное изображение, где каждый пиксель представляет расстояние от камеры или датчика до точки в пространстве, соответствующей этому пикселю. Однако оказывается, что эти расстояния могут быть абсолютными или относительными — какой поворот!
+- **Абсолютная глубина**: каждое значение пикселя напрямую соответствует физическому расстоянию (например, в метрах или сантиметрах).
+- **Относительная глубина**: значения пикселей показывают, какие точки ближе, а какие дальше, без привязки к единицам реального мира. Часто относительная глубина инвертирована, то есть чем меньше число, тем дальше точка.
+
+Эти концепции мы разберём подробнее чуть позже.
+
+«*Ну а что значит монокулярная?*» Это просто значит, что нам нужно оценить глубину, используя всего одну фотографию. Что в этом сложного? Посмотрите на это:
+
+![image/gif](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/Metric%20and%20Relative%20Monocular%20Depth%20Estimation%20An%20Overview.%20Fine-Tuning%20Depth%20Anything%20V2/depth_ambiguity1.gif)
+
+![image/gif](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/Metric%20and%20Relative%20Monocular%20Depth%20Estimation%20An%20Overview.%20Fine-Tuning%20Depth%20Anything%20V2/depth_ambiguity2.gif)
+
+Как видите, проекция 3D-пространства на 2D-плоскость может создавать неоднозначность из‑за перспективы. Чтобы это решить, есть точные математические методы оценки глубины по нескольким изображениям: стереозрение, Structure from Motion и более широкая область фотограмметрии. Кроме того, для измерения глубины можно использовать технологии вроде лазерных сканеров (например, LiDAR). 
+
+![image/png](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/Metric%20and%20Relative%20Monocular%20Depth%20Estimation%20An%20Overview.%20Fine-Tuning%20Depth%20Anything%20V2/stereo_vision_sfm.png)
+
+## Относительная и абсолютная (метрическая) оценка глубины: в чём смысл?
+
+Давайте рассмотрим некоторые вызовы, которые подчёркивают необходимость относительной оценки глубины. И чтобы быть более научными, обратимся к нескольким статьям.
+
+>Преимущество предсказания метрической глубины — практическая польза для многих downstream-приложений в компьютерном зрении и робототехнике: картографирование, планирование, навигация, распознавание объектов, 3D-реконструкция и редактирование изображений. Однако обучение одной модели метрической оценки глубины сразу на нескольких датасетах часто ухудшает качество, особенно когда коллекция включает изображения с большой разницей в масштабе глубины, например внутренние и внешние сцены. В результате текущие модели MDE обычно переобучаются на конкретных датасетах и плохо обобщаются на другие.
+
+Обычно архитектура для этой задачи image-to-image — это модель энкодер–декодер вроде U-Net с разными модификациями. Формально это задача поэлементной регрессии по пикселям. Представьте, насколько сложно нейронной сети точно предсказывать расстояния для каждого пикселя, от нескольких метров до нескольких сотен метров. <br> Это приводит к идее отойти от универсальной модели, которая предсказывает точные расстояния во всех сценариях. Вместо этого давайте разработаем модель, которая приблизительно (относительно) предсказывает глубину, захватывая форму и структуру сцены, указывая, какие объекты дальше, а какие ближе относительно друг друга и относительно нас. Если нужны точные расстояния, мы можем дообучить эту относительную модель на конкретном датасете, опираясь на уже имеющееся понимание задачи.
+
+![image/png](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/Metric%20and%20Relative%20Monocular%20Depth%20Estimation%20An%20Overview.%20Fine-Tuning%20Depth%20Anything%20V2/different_scales.png)
+
+Есть ещё больше деталей, на которые нужно обратить внимание.
+
+>Модель должна не только справляться с изображениями, снятыми разными камерами и с разными настройками, но и научиться подстраиваться под большие вариации общего масштаба сцен.
+
+Помимо разных масштабов, как мы упоминали ранее, существенная проблема кроется в самих камерах, которые могут иметь совершенно разные перспективы мира.
+
+![image/png](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/Metric%20and%20Relative%20Monocular%20Depth%20Estimation%20An%20Overview.%20Fine-Tuning%20Depth%20Anything%20V2/focal_lenght.png)
+
+Заметьте, как изменения фокусного расстояния драматически меняют восприятие расстояний на фоне!
+
+Наконец, во многих датасетах вообще нет карт абсолютной глубины, а есть только относительные (например, из‑за отсутствия калибровки камеры). Кроме того, у каждого метода получения глубины свои преимущества, недостатки, смещения и проблемы.
+
+![image/png](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/Metric%20and%20Relative%20Monocular%20Depth%20Estimation%20An%20Overview.%20Fine-Tuning%20Depth%20Anything%20V2/metrics1.png)
+
+>Мы выделяем три главных вызова. 1) Изначально разные представления глубины: прямое против обратного представления глубины. 2) Неоднозначность масштаба: для некоторых источников данных глубина дана лишь с точностью до неизвестного масштаба. 3) Неоднозначность сдвига: некоторые датасеты дают диспаратность лишь с точностью до неизвестного масштаба и глобального сдвига диспаратности, который является функцией неизвестной базы и горизонтального сдвига главных точек из‑за постобработки
+
+*Диспаратность — это разница в кажущемся положении объекта при взгляде с двух разных точек зрения; её обычно используют в стереозрении для оценки глубины.*
+
+Короче говоря, надеюсь, я убедил вас, что нельзя просто взять разрозненные карты глубины из интернета и обучить на них модель какой‑нибудь поэлементной MSE.
+
+Но как уравнять все эти вариации? Как максимально абстрагироваться от различий и извлечь общее из всех этих датасетов — а именно форму и структуру сцены, пропорциональные отношения между объектами, указывающие, что ближе, а что дальше?
+
+## Функция потерь, инвариантная к масштабу и сдвигу 😎
+
+Проще говоря, нам нужно выполнить своего рода нормализацию всех карт глубины, на которых мы хотим обучаться и считать метрики. Вот идея: мы хотим создать функцию потерь, которая не учитывает масштаб среды или различные сдвиги. Остаётся перевести эту идею на математический язык.
+
+>Конкретно значение глубины сначала преобразуют в пространство диспаратности по \\( d = \frac{1}{t} \\), а затем нормализуют к \\( 0 \sim 1 \\) на каждой карте глубины. Чтобы сделать возможным совместное обучение на нескольких датасетах, мы используем аффинно-инвариантную функцию потерь, чтобы игнорировать неизвестный масштаб и сдвиг каждого сэмпла:
+$$\mathcal{L}_1 = \frac{1}{HW} \sum_{i=1}^{HW} \rho(d_i^*, d_i),$$
+где \\( d_i^* \\) и \\( d_i \\) — предсказание и истинное значение соответственно. А \\( \rho \\) — аффинно-инвариантная средняя абсолютная ошибка: \\( \rho(d_i^*, d_i) = \left| \hat{d}_i^* - \hat{d}_i \right| \\), где \\( \hat{d}_i^* \\) и \\( \hat{d}_i \\) — масштабированные и сдвинутые версии предсказания \\( d_i^* \\) и истинного значения \\( d_i \\):
+$$\hat{d}_i = \frac{d_i - t(d)}{s(d)},$$
+где \\( t(d) \\) и \\( s(d) \\) используют, чтобы выровнять предсказание и истинное значение так, чтобы у них был нулевой сдвиг и единичный масштаб:
+$$t(d) = \mathrm{median}(d), \quad s(d) = \frac{1}{HW} \sum_{i=1}^{HW} \left| d_i - t(d) \right|.$$
+
+На самом деле есть много других методов и функций, которые помогают устранить масштаб и сдвиги. Есть также разные добавления к функциям потерь, например gradient loss, которая фокусируется не на самих значениях пикселей, а на том, как быстро они меняются (отсюда название — градиент). Подробнее об этом можно прочитать в статье [MiDaS](https://arxiv.org/abs/1907.01341); в конце я включу список полезной литературы. Кратко обсудим метрики, прежде чем перейти к самой захватывающей части — дообучению на абсолютной глубине с пользовательским датасетом.
+
+## Метрики
+
+В оценке глубины используют несколько стандартных метрик качества, включая MAE (Mean Absolute Error), RMSE (Root Mean Square Error) и их логарифмические вариации, чтобы сгладить большие разрывы в расстоянии. Кроме того, рассмотрите следующее:
+- **Absolute Relative Error (AbsRel)**: эта метрика похожа на MAE, но выражена в процентах и измеряет, насколько предсказанные расстояния в среднем отличаются от истинных в процентном выражении. <br> \\(\text{AbsRel} = \frac{1}{N} \sum_{i=1}^{N} \frac{|d_i - \hat{d}_i|}{d_i}\\)
+- **Threshold Accuracy ( \\(\delta_1\\))**: измеряет процент предсказанных пикселей, которые отличаются от истинных не более чем на 25%. <br> \\(\delta_1 = \text{ proportion of predicted depths where } \max\left(\frac{d_i}{\hat{d}_i}, \frac{\hat{d}_i}{d_i}\right) < 1.25\\)
+
+### Важные соображения
+>Для всех наших моделей и бейзлайнов мы выравниваем предсказания и истинную глубину по масштабу и сдвигу для каждого изображения перед измерением ошибок.
+
+Действительно, если мы обучаемся предсказывать относительную глубину, но хотим измерить качество на датасете с абсолютными значениями, и нас не интересует дообучение на этом датасете или абсолютные значения, мы можем, аналогично функции потерь, исключить масштаб и сдвиг из расчётов и стандартизировать всё к единой мере.
+
+### Четыре метода расчёта метрик
+
+Понимание этих методов помогает избежать путаницы при анализе метрик в статьях:
+
+1. **Zero-shot Relative Depth Estimation**
+    - Обучаются предсказывать относительную глубину на одном наборе датасетов и измеряют качество на других. Поскольку глубина относительная, существенно разные масштабы не проблема, и метрики на других датасетах обычно остаются высокими, как на тестовых наборах обучающих датасетов.
+
+![image/png](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/Metric%20and%20Relative%20Monocular%20Depth%20Estimation%20An%20Overview.%20Fine-Tuning%20Depth%20Anything%20V2/metrics2.png)
+
+2. **Zero-shot Absolute Depth Estimation**
+    - Обучают универсальную относительную модель, затем дообучают её на хорошем датасете для предсказания абсолютной глубины и измеряют качество предсказаний абсолютной глубины на другом датасете. Метрики в этом случае обычно хуже по сравнению с предыдущим методом, что подчёркивает сложность хорошо предсказывать абсолютную глубину в разных средах.
+
+![image/png](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/Metric%20and%20Relative%20Monocular%20Depth%20Estimation%20An%20Overview.%20Fine-Tuning%20Depth%20Anything%20V2/metrics3.png)
+
+3. **Fine-tuned (In-domain) Absolute Depth Estimation**
+    - Похоже на предыдущий метод, но теперь качество измеряют на тестовом наборе датасета, использованного для дообучения предсказания абсолютной глубины. Это один из самых практических подходов.
+
+![image/png](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/Metric%20and%20Relative%20Monocular%20Depth%20Estimation%20An%20Overview.%20Fine-Tuning%20Depth%20Anything%20V2/metrics4.png)
+
+4. **Fine-tuned (In-domain) Relative Depth Estimation**
+    - Обучаются предсказывать относительную глубину и измеряют качество на тестовом наборе обучающих датасетов. Возможно, это не самое точное название, но идея проста.
+
+## Дообучение Depth Anything V2 для абсолютной оценки глубины
+
+В этом разделе мы воспроизведём результаты из статьи Depth Anything V2, дообучив модель предсказывать абсолютную глубину на датасете NYU-D, стремясь достичь метрик, похожих на те, что показаны в последней таблице предыдущего раздела.
+
+### Ключевые идеи Depth Anything V2
+Depth Anything V2 — мощная модель оценки глубины, достигающая замечательных результатов благодаря нескольким инновационным концепциям:
+
+- **Универсальный метод обучения на гетерогенных данных**: этот метод, введённый в статье MiDaS 2020, позволяет устойчиво обучаться на разных типах датасетов.
+- **Архитектура DPT**: статья "Vision Transformers for Dense Prediction" представляет эту архитектуру, которая по сути является U-Net с энкодером Vision Transformer (ViT) и несколькими модификациями.
+
+![image/png](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/Metric%20and%20Relative%20Monocular%20Depth%20Estimation%20An%20Overview.%20Fine-Tuning%20Depth%20Anything%20V2/dpt.png)
+
+- **Энкодер DINOv2**: это стандартный ViT, предобученный самообучаемым методом на огромном датасете; он служит мощным и универсальным экстрактором признаков. В последние годы исследователи компьютерного зрения стремились создать foundation-модели, похожие на GPT и BERT в NLP, и DINOv2 — значительный шаг в этом направлении.
+- **Использование синтетических данных**: пайплайн обучения очень хорошо описан на изображении ниже. Этот подход позволил авторам достичь такой ясности и точности карт глубины. В конце концов, если подумать, метки, полученные из синтетических данных, поистине «ground truth».
+
+![image/png](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/Metric%20and%20Relative%20Monocular%20Depth%20Estimation%20An%20Overview.%20Fine-Tuning%20Depth%20Anything%20V2/DA2_pipeline.png)
+
+### Начинаем дообучение
+
+Теперь погрузимся в код. Если у вас нет доступа к мощному GPU, я настоятельно рекомендую использовать Kaggle вместо Colab. У Kaggle несколько преимуществ:
+- До 30 часов использования GPU в неделю
+- Нет обрывов соединения
+- Очень быстрый и удобный доступ к датасетам
+- Возможность использовать два GPU одновременно в одной из конфигураций, что поможет попрактиковаться в распределённом обучении
+
+Вы можете сразу перейти к коду в этом [ноутбуке на Kaggle](https://www.kaggle.com/code/amanattheedge/depth-anything-v2-metric-fine-tunning-on-nyu/notebook).
+
+Здесь мы пройдём всё подробно. Для начала давайте скачаем все необходимые модули из репозитория авторов и чекпоинт самой маленькой модели с энкодером ViT-S.
+
+#### Шаг 1: Клонировать репозиторий и скачать предобученные веса
+
+```bash
+!git clone https://github.com/DepthAnything/Depth-Anything-V2
+!wget -O depth_anything_v2_vits.pth https://huggingface.co/depth-anything/Depth-Anything-V2-Small/resolve/main/depth_anything_v2_vits.pth?download=true
+```
+Датасет также можно скачать [здесь](http://datasets.lids.mit.edu/fastdepth/data/) 
+
+#### Шаг 2: Импортировать нужные модули
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+from tqdm import tqdm
+import cv2
+import random
+import h5py
+
+import sys
+
+sys.path.append("/kaggle/working/Depth-Anything-V2/metric_depth")
+
+from accelerate import Accelerator
+from accelerate.utils import set_seed
+from accelerate import notebook_launcher
+from accelerate import DistributedDataParallelKwargs
+
+import transformers
+
+import torch
+import torchvision
+from torchvision.transforms import v2
+from torchvision.transforms import Compose
+import torch.nn.functional as F
+import albumentations as A
+
+from depth_anything_v2.dpt import DepthAnythingV2
+from util.loss import SiLogLoss
+from dataset.transform import Resize, NormalizeImage, PrepareForNet, Crop
+```
+
+#### Шаг 3: Получить все пути файлов для обучения и валидации
+```python
+def get_all_files(directory):
+    all_files = []
+    for root, dirs, files in os.walk(directory):
+        for file in files:
+            all_files.append(os.path.join(root, file))
+    return all_files
+
+
+train_paths = get_all_files("/kaggle/input/nyu-depth-dataset-v2/nyudepthv2/train")
+val_paths = get_all_files("/kaggle/input/nyu-depth-dataset-v2/nyudepthv2/val")
+```
+#### Шаг 4: Определить датасет PyTorch
+```python
+# NYU Depth V2 40k. Original NYU is 400k
+class NYU(torch.utils.data.Dataset):
+    def __init__(self, paths, mode, size=(518, 518)):
+
+        self.mode = mode  # train or val
+        self.size = size
+        self.paths = paths
+
+        net_w, net_h = size
+        # author's transforms
+        self.transform = Compose(
+            [
+                Resize(
+                    width=net_w,
+                    height=net_h,
+                    resize_target=True if mode == "train" else False,
+                    keep_aspect_ratio=True,
+                    ensure_multiple_of=14,
+                    resize_method="lower_bound",
+                    image_interpolation_method=cv2.INTER_CUBIC,
+                ),
+                NormalizeImage(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+                PrepareForNet(),
+            ]
+            + ([Crop(size[0])] if self.mode == "train" else [])
+        )
+
+        # only horizontal flip in the paper
+        self.augs = A.Compose(
+            [
+                A.HorizontalFlip(),
+                A.ColorJitter(hue=0.1, contrast=0.1, brightness=0.1, saturation=0.1),
+                A.GaussNoise(var_limit=25),
+            ]
+        )
+
+    def __getitem__(self, item):
+        path = self.paths[item]
+        image, depth = self.h5_loader(path)
+
+        if self.mode == "train":
+            augmented = self.augs(image=image, mask=depth)
+            image = augmented["image"] / 255.0
+            depth = augmented["mask"]
+        else:
+            image = image / 255.0
+
+        sample = self.transform({"image": image, "depth": depth})
+
+        sample["image"] = torch.from_numpy(sample["image"])
+        sample["depth"] = torch.from_numpy(sample["depth"])
+
+        # sometimes there are masks for valid depths in datasets because of noise e.t.c
+        #         sample['valid_mask'] = ...
+
+        return sample
+
+    def __len__(self):
+        return len(self.paths)
+
+    def h5_loader(self, path):
+        h5f = h5py.File(path, "r")
+        rgb = np.array(h5f["rgb"])
+        rgb = np.transpose(rgb, (1, 2, 0))
+        depth = np.array(h5f["depth"])
+        return rgb, depth
+```
+Несколько замечаний:
+- Оригинальный датасет NYU-D содержит 407k сэмплов, но мы используем подмножество из 40k. Это слегка повлияет на финальное качество модели.
+- Авторы статьи использовали только горизонтальные отражения для аугментации данных.
+- Иногда некоторые точки на картах глубины могут быть обработаны некорректно, что даёт «плохие пиксели». Некоторые датасеты включают маску, которая различает валидные и невалидные пиксели, в дополнение к изображению и карте глубины. Эта маска нужна, чтобы исключить плохие пиксели из расчёта функции потерь и метрик.
+
+![image/png](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/Metric%20and%20Relative%20Monocular%20Depth%20Estimation%20An%20Overview.%20Fine-Tuning%20Depth%20Anything%20V2/depth_holes.png)
+
+- Во время обучения мы масштабируем изображения так, чтобы меньшая сторона была 518 пикселей, а затем обрезаем их. Для валидации мы не обрезаем и не масштабируем карты глубины. Вместо этого мы апсемплируем предсказанные карты глубины и считаем метрики в исходном разрешении.
+
+#### Шаг 5: Визуализация данных
+```python
+num_images = 5
+
+fig, axes = plt.subplots(num_images, 2, figsize=(10, 5 * num_images))
+
+train_set = NYU(train_paths, mode="train")
+
+for i in range(num_images):
+    sample = train_set[i * 1000]
+    img, depth = sample["image"].numpy(), sample["depth"].numpy()
+
+    mean = np.array([0.485, 0.456, 0.406]).reshape((3, 1, 1))
+    std = np.array([0.229, 0.224, 0.225]).reshape((3, 1, 1))
+    img = img * std + mean
+
+    axes[i, 0].imshow(np.transpose(img, (1, 2, 0)))
+    axes[i, 0].set_title("Image")
+    axes[i, 0].axis("off")
+
+    im1 = axes[i, 1].imshow(depth, cmap="viridis", vmin=0)
+    axes[i, 1].set_title("True Depth")
+    axes[i, 1].axis("off")
+    fig.colorbar(im1, ax=axes[i, 1])
+
+plt.tight_layout()
+```
+![image/png](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/Metric%20and%20Relative%20Monocular%20Depth%20Estimation%20An%20Overview.%20Fine-Tuning%20Depth%20Anything%20V2/dataset.png)
+
+Как видите, изображения очень размытые и шумные. Из‑за этого мы не сможем получить детальные карты глубины, которые видны в превью Depth Anything V2. В артефактах чёрных дыр глубина равна 0, и мы используем этот факт позже для маскирования этих дыр. Также датасет содержит много почти одинаковых фотографий одного и того же места.
+
+#### Шаг 6: Подготовить даталоадеры
+```python
+def get_dataloaders(batch_size):
+
+    train_dataset = NYU(train_paths, mode="train")
+    val_dataset = NYU(val_paths, mode="val")
+
+    train_dataloader = torch.utils.data.DataLoader(
+        train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, drop_last=True
+    )
+
+    val_dataloader = torch.utils.data.DataLoader(
+        val_dataset,
+        batch_size=1,  # for dynamic resolution evaluations without padding
+        shuffle=False,
+        num_workers=4,
+        drop_last=True,
+    )
+
+    return train_dataloader, val_dataloader
+```
+#### Шаг 7: Оценка метрик
+```python
+def eval_depth(pred, target):
+    assert pred.shape == target.shape
+
+    thresh = torch.max((target / pred), (pred / target))
+
+    d1 = torch.sum(thresh < 1.25).float() / len(thresh)
+
+    diff = pred - target
+    diff_log = torch.log(pred) - torch.log(target)
+
+    abs_rel = torch.mean(torch.abs(diff) / target)
+
+    rmse = torch.sqrt(torch.mean(torch.pow(diff, 2)))
+    mae = torch.mean(torch.abs(diff))
+
+    silog = torch.sqrt(
+        torch.pow(diff_log, 2).mean() - 0.5 * torch.pow(diff_log.mean(), 2)
+    )
+
+    return {
+        "d1": d1.detach(),
+        "abs_rel": abs_rel.detach(),
+        "rmse": rmse.detach(),
+        "mae": mae.detach(),
+        "silog": silog.detach(),
+    }
+```
+Наша функция потерь — SiLog. Может казаться, что при обучении на абсолютной глубине мы должны забыть об инвариантности к масштабу и других техниках, используемых для обучения относительной глубине. Однако оказывается, что это не совсем так, и мы часто всё равно хотим использовать своего рода «регуляризацию масштаба», но в меньшей степени. Параметр λ=0.5 помогает балансировать между глобальной согласованностью и локальной точностью.
+
+#### Шаг 8: Определить гиперпараметры
+```python
+model_weights_path = "/kaggle/working/depth_anything_v2_vits.pth"
+model_configs = {
+    "vits": {"encoder": "vits", "features": 64, "out_channels": [48, 96, 192, 384]},
+    "vitb": {"encoder": "vitb", "features": 128, "out_channels": [96, 192, 384, 768]},
+    "vitl": {"encoder": "vitl", "features": 256, "out_channels": [256, 512, 1024, 1024]},
+    "vitg": {
+        "encoder": "vitg",
+        "features": 384,
+        "out_channels": [1536, 1536, 1536, 1536],
+    },
+}
+model_encoder = "vits"
+max_depth = 10
+batch_size = 11
+lr = 5e-6
+weight_decay = 0.01
+num_epochs = 10
+warmup_epochs = 0.5
+scheduler_rate = 1
+load_state = False
+
+state_path = "/kaggle/working/cp"
+save_model_path = "/kaggle/working/model"
+seed = 42
+mixed_precision = "fp16"
+```
+Обратите внимание на параметр "**max_depth**". Последний слой в нашей модели — сигмоида для каждого пикселя, дающая выход от 0 до 1. Мы просто умножаем каждый пиксель на "**max_depth**", чтобы представить расстояния от 0 до "**max_depth**".
+
+#### Шаг 9: Функция обучения
+```python
+def train_fn():
+
+    set_seed(seed)
+    ddp_kwargs = DistributedDataParallelKwargs(find_unused_parameters=True)
+    accelerator = Accelerator(
+        mixed_precision=mixed_precision,
+        kwargs_handlers=[ddp_kwargs],
+    )
+
+    # in the paper they initialize decoder randomly and use only encoder pretrained weights. Then full fine-tune
+    # ViT-S encoder here
+    model = DepthAnythingV2(**{**model_configs[model_encoder], "max_depth": max_depth})
+    model.load_state_dict(
+        {k: v for k, v in torch.load(model_weights_path).items() if "pretrained" in k},
+        strict=False,
+    )
+
+    optim = torch.optim.AdamW(
+        [
+            {
+                "params": [
+                    param
+                    for name, param in model.named_parameters()
+                    if "pretrained" in name
+                ],
+                "lr": lr,
+            },
+            {
+                "params": [
+                    param
+                    for name, param in model.named_parameters()
+                    if "pretrained" not in name
+                ],
+                "lr": lr * 10,
+            },
+        ],
+        lr=lr,
+        weight_decay=weight_decay,
+    )
+
+    criterion = SiLogLoss()  # author's loss
+
+    train_dataloader, val_dataloader = get_dataloaders(batch_size)
+
+    scheduler = transformers.get_cosine_schedule_with_warmup(
+        optim,
+        len(train_dataloader) * warmup_epochs,
+        num_epochs * scheduler_rate * len(train_dataloader),
+    )
+
+    model, optim, train_dataloader, val_dataloader, scheduler = accelerator.prepare(
+        model, optim, train_dataloader, val_dataloader, scheduler
+    )
+
+    if load_state:
+        accelerator.wait_for_everyone()
+        accelerator.load_state(state_path)
+
+    best_val_absrel = 1000
+
+    for epoch in range(1, num_epochs):
+
+        model.train()
+        train_loss = 0
+        for sample in tqdm(
+            train_dataloader, disable=not accelerator.is_local_main_process
+        ):
+            optim.zero_grad()
+
+            img, depth = sample["image"], sample["depth"]
+
+            pred = model(img)
+            # mask
+            loss = criterion(pred, depth, (depth <= max_depth) & (depth >= 0.001))
+
+            accelerator.backward(loss)
+            optim.step()
+            scheduler.step()
+
+            train_loss += loss.detach()
+
+        train_loss /= len(train_dataloader)
+        train_loss = accelerator.reduce(train_loss, reduction="mean").item()
+
+        model.eval()
+        results = {"d1": 0, "abs_rel": 0, "rmse": 0, "mae": 0, "silog": 0}
+        for sample in tqdm(val_dataloader, disable=not accelerator.is_local_main_process):
+
+            img, depth = sample["image"].float(), sample["depth"][0]
+
+            with torch.no_grad():
+                pred = model(img)
+                # evaluate on the original resolution
+                pred = F.interpolate(
+                    pred[:, None], depth.shape[-2:], mode="bilinear", align_corners=True
+                )[0, 0]
+
+            valid_mask = (depth <= max_depth) & (depth >= 0.001)
+
+            cur_results = eval_depth(pred[valid_mask], depth[valid_mask])
+
+            for k in results.keys():
+                results[k] += cur_results[k]
+
+        for k in results.keys():
+            results[k] = results[k] / len(val_dataloader)
+            results[k] = round(accelerator.reduce(results[k], reduction="mean").item(), 3)
+
+        accelerator.wait_for_everyone()
+        accelerator.save_state(state_path, safe_serialization=False)
+
+        if results["abs_rel"] < best_val_absrel:
+            best_val_absrel = results["abs_rel"]
+            unwrapped_model = accelerator.unwrap_model(model)
+            if accelerator.is_local_main_process:
+                torch.save(unwrapped_model.state_dict(), save_model_path)
+
+        accelerator.print(
+            f"epoch_{epoch},  train_loss = {train_loss:.5f}, val_metrics = {results}"
+        )
+
+
+# P.S. While testing one configuration, I encountered an error in which the loss turned into nan.
+# This is fixed by adding a small epsilon to the predictions to prevent division by 0
+```
+В статье авторы случайно инициализируют декодер и используют только веса энкодера. Затем они дообучают всю модель. Другие важные моменты:
+- Использование разных скоростей обучения для декодера и энкодера. Скорость обучения энкодера ниже, поскольку мы не хотим существенно менять уже отличные веса, в отличие от случайно инициализированного декодера.
+- Авторы использовали полиномиальный scheduler в статье, а я использовал cosine scheduler с warmup, потому что он мне нравится.
+- В маске, как упоминалось ранее, мы избегаем чёрных дыр на картах глубины с помощью условия "**depth >= 0.001**"
+- Во время циклов обучения мы считаем функцию потерь на масштабированных картах глубины. Во время валидации мы апсемплируем предсказания и считаем метрики в исходном разрешении.
+- И посмотрите, как легко обернуть пользовательский код PyTorch для распределённых вычислений с помощью HF accelerate.
+
+#### Шаг 10: Запустить обучение
+```python
+# You can run this code with 1 gpu. Just set num_processes=1
+notebook_launcher(train_fn, num_processes=2)
+```
+
+Я считаю, что мы достигли желаемой цели. Небольшое отличие в качестве можно отнести к значительной разнице в размерах датасетов (40k против 400k). Имейте в виду, что мы использовали энкодер ViT-S.
+
+![image/png](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/Metric%20and%20Relative%20Monocular%20Depth%20Estimation%20An%20Overview.%20Fine-Tuning%20Depth%20Anything%20V2/metrics5.png)
+
+Давайте покажем некоторые результаты
+```python
+model = DepthAnythingV2(**{**model_configs[model_encoder], "max_depth": max_depth}).to(
+    "cuda"
+)
+model.load_state_dict(torch.load(save_model_path))
+
+num_images = 10
+
+fig, axes = plt.subplots(num_images, 3, figsize=(15, 5 * num_images))
+
+val_dataset = NYU(val_paths, mode="val")
+model.eval()
+for i in range(num_images):
+    sample = val_dataset[i]
+    img, depth = sample["image"], sample["depth"]
+
+    mean = torch.tensor([0.485, 0.456, 0.406]).view(3, 1, 1)
+    std = torch.tensor([0.229, 0.224, 0.225]).view(3, 1, 1)
+
+    with torch.inference_mode():
+        pred = model(img.unsqueeze(0).to("cuda"))
+        pred = F.interpolate(
+            pred[:, None], depth.shape[-2:], mode="bilinear", align_corners=True
+        )[0, 0]
+
+    img = img * std + mean
+
+    axes[i, 0].imshow(img.permute(1, 2, 0))
+    axes[i, 0].set_title("Image")
+    axes[i, 0].axis("off")
+
+    max_depth = max(depth.max(), pred.cpu().max())
+
+    im1 = axes[i, 1].imshow(depth, cmap="viridis", vmin=0, vmax=max_depth)
+    axes[i, 1].set_title("True Depth")
+    axes[i, 1].axis("off")
+    fig.colorbar(im1, ax=axes[i, 1])
+
+    im2 = axes[i, 2].imshow(pred.cpu(), cmap="viridis", vmin=0, vmax=max_depth)
+    axes[i, 2].set_title("Predicted Depth")
+    axes[i, 2].axis("off")
+    fig.colorbar(im2, ax=axes[i, 2])
+
+plt.tight_layout()
+```
+
+![image/png](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/Metric%20and%20Relative%20Monocular%20Depth%20Estimation%20An%20Overview.%20Fine-Tuning%20Depth%20Anything%20V2/inference.png)
+
+Изображения в валидационном наборе гораздо чище и точнее, чем в обучающем, поэтому наши предсказания выглядят немного размытыми по сравнению с ними. Ещё раз взгляните на обучающие сэмплы выше.
+
+В целом ключевой вывод в том, что качество модели сильно зависит от качества предоставленных карт глубины. Респект авторам Depth Anything V2 за то, что они преодолели это ограничение и получают очень чёткие карты глубины. Единственный недостаток — они относительные.
+
+## Источники
+- [Towards Robust Monocular Depth Estimation: Mixing Datasets for Zero-shot Cross-dataset Transfer](https://arxiv.org/abs/1907.01341)
+- [ZoeDepth: Zero-shot Transfer by Combining Relative and Metric Depth](https://arxiv.org/abs/2302.12288)
+- [Vision Transformers for Dense Prediction](https://arxiv.org/abs/2103.13413)
+- [Depth Anything: Unleashing the Power of Large-Scale Unlabeled Data](https://arxiv.org/abs/2401.10891)
+- [Depth Anything V2](https://arxiv.org/abs/2406.09414)

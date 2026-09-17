@@ -1,0 +1,152 @@
+# OneFormer: один трансформер, чтобы править универсальной сегментацией изображений
+
+<img align="center" width="1050" height="303" src="https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/oneformer/teaser.svg">
+
+## Введение
+
+OneFormer — прорывной подход к сегментации изображений, задаче компьютерного зрения, которая состоит в том, чтобы разделить изображение на осмысленные сегменты. Традиционные методы использовали отдельные модели и архитектуры для разных задач сегментации, например для идентификации объектов (экземплярная сегментация) или разметки областей (семантическая сегментация). Более поздние попытки стремились объединить эти задачи с помощью общих архитектур, но всё ещё требовали отдельного обучения для каждой задачи.
+
+Появляется OneFormer — универсальный фреймворк сегментации изображений, созданный, чтобы преодолеть эти трудности. Он вводит уникальный многозадачный подход, позволяющий одной модели решать задачи семантической, экземплярной и паноптической сегментации без отдельного обучения на каждой. Ключевая инновация — стратегия совместного обучения, обусловленного задачей, где модель направляется входом задачи, что делает её динамической и адаптивной к разным задачам и во время обучения, и во время инференса.
+
+Этот прорыв не только упрощает процесс обучения, но и превосходит существующие модели на различных датасетах. OneFormer достигает этого, используя паноптические аннотации, объединяя информацию истинной разметки, нужную для всех задач. Кроме того, фреймворк вводит контрастное обучение «запрос–текст» (query-text contrastive learning), чтобы лучше различать задачи и повысить общее качество.
+
+## Предыстория OneFormer
+
+![Метод OneFormer](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/oneformer/oneformer.svg)
+_Изображение взято из статьи OneFormer_
+
+Чтобы понять значение OneFormer, взглянем на предысторию сегментации изображений. В обработке изображений сегментация состоит в том, чтобы разделить изображение на разные части, что критически важно для задач вроде распознавания объектов и понимания содержимого сцены. Традиционно выделяли два основных типа задач сегментации: семантическую сегментацию, где пиксели размечают категориями вроде «дорога» или «небо», и экземплярную сегментацию, которая идентифицирует объекты с хорошо определёнными границами.
+
+Со временем исследователи предложили паноптическую сегментацию как способ объединить семантическую и экземплярную сегментацию. Однако даже с этими достижениями оставались трудности. Существующие модели, спроектированные для паноптической сегментации, всё ещё требовали отдельного обучения для каждой задачи, что делало их в лучшем случае полууниверсальными.
+
+Именно здесь OneFormer выступает как переломный момент. Он вводит новый подход — универсальную многозадачную архитектуру. Идея в том, чтобы обучить этот фреймворк только один раз, используя одну универсальную архитектуру, одну модель и всего один датасет. Магия происходит, когда OneFormer превосходит специализированные фреймворки в задачах семантической, экземплярной и паноптической сегментации. Этот прорыв — не только про повышение точности; он о том, чтобы сделать сегментацию изображений более универсальной и эффективной. С OneFormer необходимость в обширных ресурсах и отдельном обучении для разных задач уходит в прошлое.
+
+## Ключевые концепции OneFormer
+
+![Совместное обучение, обусловленное задачей](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/oneformer/text_gen.svg)
+
+Теперь разберём ключевые особенности OneFormer, которые выделяют его:
+
+### Task-Dynamic Mask
+
+OneFormer использует остроумный приём под названием "Task-Dynamic Mask", чтобы лучше понимать и решать разные типы задач сегментации изображений. Когда модель встречает изображение, она использует этот "Task-Dynamic Mask", чтобы решить, уделять ли внимание всей сцене, идентифицировать конкретные объекты с чёткими границами или делать и то и другое.
+
+### Совместное обучение, обусловленное задачей
+Одна из прорывных особенностей OneFormer — стратегия совместного обучения, обусловленного задачей. Вместо отдельного обучения для семантической, экземплярной и паноптической сегментации OneFormer равномерно сэмплирует задачу во время обучения. Эта стратегия позволяет модели обучаться и обобщаться сразу по разным задачам сегментации. Обусловливая архитектуру конкретной задачей через токен задачи, OneFormer унифицирует процесс обучения, снижая потребность в архитектурах, моделях и датасетах, специфичных для задачи. Этот инновационный подход существенно упрощает пайплайн обучения и требования к ресурсам.
+
+### Контрастная потеря «запрос–текст»
+
+Наконец, поговорим о "Query-Text Contrastive Loss". Представьте это как способ, которым OneFormer учит себя различиям между задачами и классами. В процессе обучения модель сравнивает признаки, которые извлекает из изображения (запросы), с соответствующими текстовыми описаниями (вроде «фото с машиной»). Это помогает модели понять уникальные характеристики каждой задачи и снизить путаницу между разными классами. "Task-Dynamic Mask" OneFormer позволяет ему быть универсальным, как многозадачный помощник, а "Query-Text Contrastive Loss" помогает изучить специфику каждой задачи, сравнивая визуальные признаки с текстовыми описаниями.
+
+Сочетая эти ключевые концепции, OneFormer становится умным и эффективным инструментом сегментации изображений, делая процесс более универсальным и доступным.
+
+## Заключение
+
+![Сравнение результатов](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/oneformer/plots.svg)
+_Изображение взято из статьи OneFormer_
+
+В заключение, фреймворк OneFormer представляет прорывной подход в области сегментации изображений, стремясь упростить и унифицировать задачу в разных доменах. В отличие от традиционных методов, которые опираются на специализированные архитектуры для каждой задачи сегментации, OneFormer вводит новую универсальную многозадачную архитектуру, которой нужна только одна модель, обученная один раз на универсальном датасете, чтобы превзойти существующие фреймворки. Кроме того, включение контрастной потери «запрос–текст» во время обучения усиливает способность модели изучать межзадачные и межклассовые различия. OneFormer использует архитектуры на основе трансформеров, вдохновлённые недавними успехами в компьютерном зрении, и вводит запросы, направляемые задачей, чтобы повысить чувствительность к задаче. Результаты впечатляют: OneFormer превосходит передовые модели в задачах семантической, экземплярной и паноптической сегментации на бенчмарк-датасетах вроде ADE20k, Cityscapes и COCO. Качество фреймворка дополнительно усиливается новыми backbone ConvNeXt и DiNAT.
+
+В итоге OneFormer представляет значительный шаг к универсальной и доступной сегментации изображений. Вводя одну модель, способную решать разнообразные задачи сегментации, фреймворк упрощает процесс сегментации и снижает требования к ресурсам.
+
+## Пример использования модели
+
+Посмотрим пример использования модели. Backbone Dinat требует библиотеку Natten, установка которой может занять некоторое время.
+```bash
+!pip install -q natten 
+```
+Ниже можно увидеть код инференса в зависимости от разных типов сегментации.
+
+```python
+from transformers import OneFormerProcessor, OneFormerForUniversalSegmentation
+from PIL import Image
+import requests
+import matplotlib.pyplot as plt
+
+
+def run_segmentation(image, task_type):
+    """Performs image segmentation based on the given task type.
+
+    Args:
+        image (PIL.Image): The input image.
+        task_type (str): The type of segmentation to perform ('semantic', 'instance', or 'panoptic').
+
+    Returns:
+        PIL.Image: The segmented image.
+
+    Raises:
+        ValueError: If the task type is invalid.
+    """
+
+    processor = OneFormerProcessor.from_pretrained(
+        "shi-labs/oneformer_ade20k_dinat_large"
+    )  # Load once here
+    model = OneFormerForUniversalSegmentation.from_pretrained(
+        "shi-labs/oneformer_ade20k_dinat_large"
+    )
+
+    if task_type == "semantic":
+        inputs = processor(images=image, task_inputs=["semantic"], return_tensors="pt")
+        outputs = model(**inputs)
+        predicted_map = processor.post_process_semantic_segmentation(
+            outputs, target_sizes=[image.size[::-1]]
+        )[0]
+
+    elif task_type == "instance":
+        inputs = processor(images=image, task_inputs=["instance"], return_tensors="pt")
+        outputs = model(**inputs)
+        predicted_map = processor.post_process_instance_segmentation(
+            outputs, target_sizes=[image.size[::-1]]
+        )[0]["segmentation"]
+
+    elif task_type == "panoptic":
+        inputs = processor(images=image, task_inputs=["panoptic"], return_tensors="pt")
+        outputs = model(**inputs)
+        predicted_map = processor.post_process_panoptic_segmentation(
+            outputs, target_sizes=[image.size[::-1]]
+        )[0]["segmentation"]
+
+    else:
+        raise ValueError(
+            "Invalid task type. Choose from 'semantic', 'instance', or 'panoptic'"
+        )
+
+    return predicted_map
+
+
+def show_image_comparison(image, predicted_map, segmentation_title):
+    """Displays the original image and the segmented image side-by-side.
+
+    Args:
+        image (PIL.Image): The original image.
+        predicted_map (PIL.Image): The segmented image.
+        segmentation_title (str): The title for the segmented image.
+    """
+
+    plt.figure(figsize=(12, 6))
+    plt.subplot(1, 2, 1)
+    plt.imshow(image)
+    plt.title("Original Image")
+    plt.axis("off")
+    plt.subplot(1, 2, 2)
+    plt.imshow(predicted_map)
+    plt.title(segmentation_title + " Segmentation")
+    plt.axis("off")
+    plt.show()
+
+
+url = "https://huggingface.co/datasets/shi-labs/oneformer_demo/resolve/main/ade20k.jpeg"
+response = requests.get(url, stream=True)
+response.raise_for_status()  # Check for HTTP errors
+image = Image.open(response.raw)
+
+task_to_run = "semantic"
+predicted_map = run_segmentation(image, task_to_run)
+show_image_comparison(image, predicted_map, task_to_run)
+```
+![семантическая сегментация](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/oneformer/oneformer_semantic.png)
+
+## Источники
+
+- [OneFormer Paper](https://arxiv.org/pdf/2211.06220.pdf)  
+- [Модель OneFormer на Hugging Face](https://huggingface.co/shi-labs/oneformer_ade20k_dinat_large)

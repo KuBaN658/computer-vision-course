@@ -1,0 +1,111 @@
+# Генерация синтетических данных с помощью DCGAN
+
+В Юните 5 мы узнали, что GAN — это фреймворк машинного обучения, в котором две нейронные сети, Generator и Discriminator, находятся в постоянном поединке. Generator создаёт синтетические изображения, а Discriminator пытается отличить реальные изображения от фейковых. Они продолжают улучшаться через этот состязательный процесс: Generator становится лучше в создании реалистичных изображений, а Discriminator — лучше в различении фейковых и реальных.
+
+Теперь посмотрим, как можно использовать GAN для генерации медицинских изображений — области, где есть сложности с малыми датасетами, вопросами приватности и ограниченным числом размеченных примеров. Исследователи использовали GANs для генерации синтетических изображений: рентгеновских снимков лёгких, изображений сетчатки, сканов мозга и изображений печени. В [GAN-based synthetic brain PET image generation](https://braininformatics.springeropen.com/counter/pdf/10.1186/s40708-020-00104-2.pdf) авторы создали PET-изображения мозга для трёх разных стадий болезни Альцгеймера. [GAN-based Synthetic Medical Image Augmentation for increased CNN Performance in Liver Lesion Classification](https://arxiv.org/abs/1803.01229) генерировали синтетические изображения печени. [BrainGAN: Brain MRI Image Generation and Classification Framework Using GAN Architectures and CNN Models](https://www.mdpi.com/1424-8220/22/11/4297) разработали фреймворк для генерации МРТ-изображений мозга с несколькими архитектурами GAN, а [A Novel COVID-19 Detection Model Based on DCGAN and Deep Transfer Learning](https://www.sciencedirect.com/science/article/pii/S1877050922007463) использовали DCGAN для генерации синтетических рентгеновских снимков лёгких, чтобы помочь в детекции COVID-19.
+
+## DCGAN (Deep Convolutional Generative Adversarial Network)
+
+DCGAN была предложена в [Unsupervised Representation Learning With Deep Convolutional Generative Adversarial Networks](https://arxiv.org/abs/1511.06434) Radford, et al. и это модель, которую многие исследователи использовали для генерации синтетических медицинских изображений. Мы используем её, чтобы генерировать синтетические изображения лёгких. Прежде чем обучать модель с помощью DCGAN, кратко разберём её архитектуру. Сеть generator принимает на вход случайный шум и генерирует синтетические изображения лёгких, а сеть discriminator пытается отличить реальные изображения от синтетических. Она использует свёрточные слои и в generator, и в discriminator, чтобы эффективно захватывать пространственные признаки. DCGAN также заменяет max-pooling свёртками со stride, чтобы уменьшать пространственные размеры.
+
+У generator следующая архитектура модели:
+
+- Вход — вектор из 100 случайных чисел, выход — изображение размера 128*128*3.
+- В модели 4 свёрточных слоя:
+  - слой Conv2D
+  - слой Batch Normalization
+  - активация ReLU
+- слой Conv2D с активацией Tanh.
+
+У discriminator следующая архитектура модели:
+
+- Вход — изображение, выход — вероятность, указывающая, фейковое изображение или реальное.
+- В модели один свёрточный слой:
+  - слой Conv2D
+  - активация Leaky ReLU
+- Три свёрточных слоя с:
+  - слоем Conv2D
+  - слоем Batch Normalization
+  - активацией Leaky ReLU
+- слой Conv2D с Sigmoid.
+
+**Сбор данных**
+
+Сначала нужно получить [датасет](https://data.mendeley.com/datasets/rscbjbr9sj/2) реальных изображений лёгких. Мы будем скачивать датасет [Chest X-Ray Images (Pneumonia)](https://huggingface.co/datasets/hf-vision/chest-xray-pneumonia) с Hugging Face Hub.
+
+Вот некоторая информация о датасете:
+
+    * Из [Identifying Medical Diagnoses and Treatable Diseases by Image-Based Deep Learning](https://www.cell.com/cell/fulltext/S0092-8674(18)30154-5?_returnURL=https%3A%2F%2Flinkinghub.elsevier.com%2Fretrieve%2Fpii%2FS0092867418301545%3Fshowall%3Dtrue):
+
+    * Датасет организован в 3 папки (train, test, val) и содержит подпапки для каждой категории изображений (Pneumonia/Normal). Есть 5 863 рентгеновских изображения (JPEG) и 2 категории (Pneumonia/Normal).
+
+    * Рентгеновские снимки грудной клетки (передне-задние) были отобраны из ретроспективных когорт педиатрических пациентов от одного до пяти лет из Guangzhou Women and Children’s Medical Center, Guangzhou. Все рентгеновские исследования грудной клетки выполнялись как часть рутинной клинической помощи пациентам.
+
+    * Для анализа рентгеновских снимков грудной клетки все рентгенограммы сначала проходили контроль качества: удалялись все низкокачественные или нечитаемые снимки. Диагнозы по изображениям затем оценивались двумя врачами-экспертами, прежде чем данные были допущены к обучению системы ИИ. Чтобы учесть возможные ошибки оценки, оценочный набор также проверялся третьим экспертом.
+
+Начнём с входа в Hugging Face Hub.
+
+```python
+from huggingface_hub import notebook_login
+
+notebook_login()
+```
+
+Далее загрузим датасет.
+
+```python
+from datasets import load_dataset
+
+dataset = load_dataset("hf-vision/chest-xray-pneumonia")
+```
+
+Мы предобработаем изображения лёгких, изменив размер и нормализовав значения пикселей.
+
+```python
+import torchvision.transforms as transforms
+from torchvision.transforms import CenterCrop, Compose, Normalize, Resize, ToTensor
+
+transform = Compose(
+    [
+        transforms.Resize(image_size),
+        transforms.CenterCrop(image_size),
+        transforms.ToTensor(),
+    ]
+)
+```
+
+Во время обучения generator стремится производить синтетические изображения лёгких, неотличимые от реальных, а discriminator учится правильно классифицировать изображения как реальные или синтетические. Начинаем с инициализации generator случайным шумом и будем обучать 100 эпох.
+
+Давайте визуализируем прогресс:
+
+![gif-обучения](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/dcgan_training_animation.gif)
+
+## Как у нас получилось?
+
+Вот 64 «хороших» синтетических изображения, определённых как получившие метку «реальное» от discriminator с вероятностью 70%.
+
+![изображения-лёгких](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/good_images.png)
+
+Видно, что некоторые синтетические изображения лёгких выглядят хорошо, но другие размыты. Есть несколько важных вещей, которые стоит упомянуть. Во-первых, исследователи, генерирующие синтетические медицинские изображения, обычно привлекают «человека в контуре» — в данном случае эксперта-рентгенолога — чтобы оценить синтетические изображения. Затем только те изображения, которые обманывают эксперта, включают вместе с реальными данными для обучения модели. Во-вторых, сгенерированные изображения, которые выглядят нормально (по крайней мере для любителя), выглядят очень похожими. Это ещё одна известная проблема GANs — они могут страдать от «mode collapse». По сути это происходит, когда generator начинает производить один и тот же тип выхода. Представьте человека, которого много хвалили за шоколадное печенье, и поэтому он стал _очень, очень_ хорошо делать именно это печенье, но не умеет печь никакое другое.
+
+Учитывая известные сложности применения GANs для обучения высококачественных медицинских изображений, некоторые исследователи изучали использование диффузионных моделей для генерации изображений лёгких. Medfusion, условная латентная DDPM для медицинских изображений, была предложена в [Diffusion Probabilistic Models Beat GAN On Medical 2D Images](https://arxiv.org/pdf/2212.07501.pdf). [Synthetically Enhanced: Unveiling Synthetic Data's Potential In Medical Imaging Research](https://arxiv.org/pdf/2311.09402.pdf), Khosravi et. al обнаруживают, что использование смеси реальных и синтетически сгенерированных изображений лёгких с помощью диффузионного процесса улучшило качество модели.
+
+## Ресурсы и дополнительное чтение
+
+- [A Novel COVID-19 Detection Model Based on DCGAN and Deep Transfer Learning](https://www.sciencedirect.com/science/article/pii/S1877050922007463)
+- [Augmentation_Gan](https://github.com/rossettisimone/AUGMENTATION_GAN)
+- [BrainGAN: Brain MRI Image Generation and Classification Framework Using GAN Architectures and CNN Models](https://www.mdpi.com/1424-8220/22/11/4297)
+- [dentifying Medical Diagnoses and Treatable Diseases by Image-Based Deep Learning](https://www.cell.com/action/showPdf?pii=S0092-8674%2818%2930154-5)
+- [Diffusion Probabilistic Models beat GANs on Medical Images](https://arxiv.org/abs/2212.07501)
+- [DR-DCGAN: A Deep Convolutional Generative Adversarial Network (DC-GAN) for Diabetic Retinopathy Image Synthesis](<https://www.webology.org/data-cms/articles/20220204053948pmwebology%2019%20(2)%20-%2077%20.pdf>)
+- [Deepfake Image Generation for Improved Brain Tumor Segmentation](https://aps.arxiv.org/abs/2307.14273)
+- [GAN Lab](https://poloclub.github.io/ganlab/)
+- [GANs for Medical Image Synthesis: An Empirical Study](https://arxiv.org/abs/2105.05318)
+- [Репозиторий Medfusion на Github](https://github.com/mueller-franzes/medfusion)
+- [Medical image editing in the latent space of Generative Adversarial Networks](https://www.sciencedirect.com/science/article/pii/S2666521221000168?ref=pdf_download&fr=RR-2&rr=833e48fa5e777142)
+- [Medical Image Synthesis with Context-Aware Generative Adversarial Networks](https://arxiv.org/abs/1612.05362)
+- [MedSynAnalyzer](https://github.com/ayanglab/MedSynAnalyzer)[dcgan_faces_tutorial](https://pytorch.org/tutorials/beginner/dcgan_faces_tutorial.html)
+- [pytorch-fid](https://github.com/mseitzer/pytorch-fid/blob/master/src/pytorch_fid/fid_score.py)
+- [StudioGAN: A Taxonomy and Benchmark of GANs for Image Synthesis](https://arxiv.org/abs/2206.09479)
+- [PyTorch-StudioGAN](https://github.com/POSTECH-CVLab/PyTorch-StudioGAN)
+- [Unsupervised Representation Learning with Deep Convolutional Generative Adversarial Networks](https://arxiv.org/abs/1511.06434)

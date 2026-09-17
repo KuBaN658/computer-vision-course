@@ -1,0 +1,137 @@
+# Введение в Stable Diffusion
+Эта глава представляет строительные блоки Stable Diffusion — генеративной модели искусственного интеллекта (генеративный ИИ), которая производит уникальные фотореалистичные изображения из текстовых и изображенческих промптов. Она изначально была запущена в 2022 году и стала возможна благодаря сотрудничеству с
+[Stability AI](https://stability.ai/), [RunwayML](https://runwayml.com/) и CompVis Group в LMU Munich вслед за [статьёй](https://arxiv.org/pdf/2112.10752.pdf).
+
+Что вы узнаете из этой главы?
+- Фундаментальные компоненты Stable Diffusion
+- Как использовать пайплайны `text-to-image`, `image2image`, inpainting
+
+## Что нужно, чтобы Stable Diffusion работала?
+Чтобы сделать этот раздел интересным, мы попробуем ответить на некоторые вопросы, чтобы понять базовые компоненты процесса Stable Diffusion.
+Мы кратко обсудим каждый компонент, поскольку они уже покрыты в нашем курсе Diffusers. Также вы можете посетить наш предыдущий раздел, который подробно рассказывает о GAN и диффузионных моделях.
+
+- Какие стратегии Stable Diffusion применяет, чтобы учить новую информацию?
+    - Она использует прямые и обратные процессы диффузионных моделей. В прямом процессе мы добавляем гауссов шум к изображению, пока не останется только случайный шум. Обычно мы не можем идентифицировать финальную шумную версию изображения.
+    - В обратном процессе у нас есть выученная нейронная сеть, обученная постепенно шумоподавлять изображение, начиная с чистого шума, пока вы не получите фактическое изображение.
+
+Оба этих процесса происходят в течение конечного числа шагов `T` (согласно статье DDPM, T=1000). Вы начинаете процесс в момент \\(t_0\\), сэмплируя реальное изображение из вашего распределения данных, а прямой процесс сэмплирует некоторый шум из гауссова распределения на каждом шаге времени t, который добавляется к изображению предыдущего шага. Чтобы получить больше математической интуиции, прочитайте [блог Hugging Face](https://huggingface.co/blog/annotated-diffusion) о диффузионных моделях.
+
+- Поскольку наши изображения могут быть огромными, как мы можем их сжать?
+
+Когда у вас большие изображения, им требуется больше вычислительной мощности для обработки. Это становится очень заметно в конкретной операции, известной как self-attention. Чем больше изображение, тем больше нужно вычислений, и эти вычисления растут очень быстро (математики называют это «квадратично») с размером изображения.
+Например, если у вас изображение шириной и высотой 128 пикселей, в нём в четыре раза больше пикселей, чем в изображении шириной и высотой только 64 пикселя. Из‑за того, как работает self-attention, работа с этим более крупным изображением требует не просто в четыре раза больше памяти и вычислительной мощности, а на самом деле в шестнадцать раз больше (поскольку 4 раза по 4 равно 16). Это делает сложной работу с изображениями очень высокого разрешения, поскольку они требуют много ресурсов для обработки.
+Латентные диффузионные модели решают высокие вычислительные требования обработки больших изображений, используя вариационный автокодировщик (VAE), чтобы сжать изображения до более управляемого размера. Идея в том, что во многих изображениях есть повторяющаяся или ненужная информация. VAE, после обучения на большом объёме данных, может сжать изображение в гораздо меньшую, уплотнённую форму. Эта меньшая версия всё ещё сохраняет существенные признаки исходного изображения.
+
+- Как мы сливаем тексты с изображениями, поскольку используем промпты?
+
+Мы знаем, что во время инференса мы можем подать описание изображения, которое хотели бы увидеть, и некоторый чистый шум как отправную точку, и модель делает всё возможное, чтобы «шумоподавить» случайный вход во что-то, что соответствует подписи.
+SD опирается на предобученную модель-трансформер на основе того, что называется [CLIP](https://huggingface.co/learn/computer-vision-course/unit4/multimodal-models/clip-and-relatives/clip). Текстовый энкодер CLIP был спроектирован обрабатывать подписи к изображениям в форму, которую можно использовать для сравнения изображений и текста, поэтому он хорошо подходит для задачи создания полезных представлений из описаний изображений. Входной промпт сначала токенизируется (на основе большого словаря, где каждому слову или подслову назначается конкретный токен), а затем пропускается через текстовый энкодер CLIP, производя 768-мерный (в случае SD 1.X) или 1024-мерный (SD 2.X) вектор для каждого токена. Чтобы всё было согласованно, промпты всегда дополняются/обрезаются до длины 77 токенов, и поэтому финальное представление, которое мы используем как кондиционирование, — это тензор формы 77x1024 на промпт.
+
+- Как мы можем добавить хорошие индуктивные смещения?
+
+Поскольку мы пытаемся генерировать что-то новое (например, реалистичного покемона), нам нужен способ выйти за пределы изображений, которые мы видели раньше (например, аниме-покемон). Здесь в картину входят U-Net и self-attention. Дана шумная версия изображения: модели ставится задача предсказать шумоподавленную версию на основе дополнительных подсказок, таких как текстовое описание изображения. Хорошо, как мы на самом деле подаём эту информацию кондиционирования в U-Net, чтобы она использовала её при предсказаниях? Ответ — нечто, называемое cross-attention. По всему U-Net разбросаны слои cross-attention.
+Каждое пространственное местоположение в U-Net может обращать внимание на разные токены в текстовом кондиционировании, принося релевантную информацию из промпта.
+
+
+## Как использовать модели `text-to-image`, `image-to-image`, inpainting в Diffusers
+Этот раздел представляет полезные сценарии использования и то, как мы можем выполнять эти задачи с помощью библиотеки [Diffusers](https://github.com/huggingface/diffusers).
+- Шаги для инференса `text-to-image`
+Идея — передать текстовый промпт, который конвертируется в выходное изображение.
+
+<iframe
+	src="https://hysts-controlnet-v1-1.hf.space/"
+	frameborder="0"
+	width="850"
+	height="450">
+</iframe>
+
+Используя библиотеку `diffusers`, вы можете запустить `text-to-image` за 2 шага.
+
+Сначала установим библиотеку `diffusers`.
+```bash
+pip install diffusers
+```
+
+Теперь мы инициализируем пайплайн, передадим наш промпт внутрь и выполним инференс.
+```python
+from diffusers import AutoPipelineForText2Image
+import torch
+
+pipeline = AutoPipelineForText2Image.from_pretrained(
+    "runwayml/stable-diffusion-v1-5", torch_dtype=torch.float16, variant="fp16"
+).to("cuda")
+generator = torch.Generator(device="cuda").manual_seed(31)
+image = pipeline(
+    "Astronaut in a jungle, cold color palette, muted colors, detailed, 8k",
+    generator=generator,
+).images[0]
+```
+
+- Шаги для инференса image-to-image
+Аналогичным образом мы можем инициализировать пайплайн, но вместо этого передать изображение и текстовый промпт.
+```python
+import torch
+from diffusers import AutoPipelineForImage2Image
+from diffusers.utils import load_image, make_image_grid
+
+pipeline = AutoPipelineForImage2Image.from_pretrained(
+    "kandinsky-community/kandinsky-2-2-decoder",
+    torch_dtype=torch.float16,
+    use_safetensors=True,
+)
+pipeline.enable_model_cpu_offload()
+# remove following line if xFormers is not installed or you have PyTorch 2.0 or higher installed
+pipeline.enable_xformers_memory_efficient_attention()
+
+# Load an image to pass to the pipeline:
+init_image = load_image(
+    "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/diffusers/cat.png"
+)
+
+# Pass a prompt and image to the pipeline to generate an image:
+prompt = "cat wizard, gandalf, lord of the rings, detailed, fantasy, cute, adorable, Pixar, Disney, 8k"
+image = pipeline(prompt, image=init_image).images[0]
+make_image_grid([init_image, image], rows=1, cols=2)
+```
+
+- Шаги для inpainting
+Для пайплайна inpainting нам нужно передать изображение, текстовый промпт и маску на основе объекта на этом изображении, которая указывает, что inpaint на изображении.
+В этом примере мы также передаём негативный промпт, чтобы дальше влиять на инференс в отношении того, чего мы хотим избежать.
+```python
+# Load the pipeline
+import torch
+from diffusers import AutoPipelineForInpainting
+from diffusers.utils import load_image, make_image_grid
+
+pipeline = AutoPipelineForInpainting.from_pretrained(
+    "kandinsky-community/kandinsky-2-2-decoder-inpaint", torch_dtype=torch.float16
+)
+pipeline.enable_model_cpu_offload()
+# remove following line if xFormers is not installed or you have PyTorch 2.0 or higher installed
+pipeline.enable_xformers_memory_efficient_attention()
+
+# Load the base and mask images:
+init_image = load_image(
+    "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/diffusers/inpaint.png"
+)
+mask_image = load_image(
+    "https://huggingface.co/datasets/huggingface/documentation-images/resolve/main/diffusers/inpaint_mask.png"
+)
+
+# Create a prompt to inpaint the image with and pass it to the pipeline with the base and mask images:
+prompt = (
+    "a black cat with glowing eyes, cute, adorable, disney, pixar, highly detailed, 8k"
+)
+negative_prompt = "bad anatomy, deformed, ugly, disfigured"
+image = pipeline(
+    prompt=prompt,
+    negative_prompt=negative_prompt,
+    image=init_image,
+    mask_image=mask_image,
+).images[0]
+make_image_grid([init_image, mask_image, image], rows=1, cols=3)
+```
+
+### Дальнейшее чтение
+- [Документация Diffusers](https://huggingface.co/docs/diffusers/using-diffusers/pipeline_overview)
+- [Установка Diffusers](https://huggingface.co/docs/diffusers/installation)

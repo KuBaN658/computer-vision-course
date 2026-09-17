@@ -1,0 +1,129 @@
+# Синтетические датасеты
+
+## Введение
+Добро пожаловать в увлекательный мир синтетических датасетов в компьютерном зрении! По мере перехода от классических методов без учителя к продвинутым техникам глубокого обучения спрос на обширные и разнообразные датасеты резко вырос. Синтетические датасеты стали ключевым ресурсом для обучения современных моделей: они дают объём данных, который часто непрактично или невозможно собрать в реальном мире. В этом разделе мы рассмотрим некоторые из самых влиятельных синтетических датасетов, их применения и то, как они формируют будущее компьютерного зрения.
+
+## Задачи низкоуровневого компьютерного зрения
+
+### Оптический поток и анализ движения
+
+Оптический поток и анализ движения критически важны для понимания динамики изображений. Вот некоторые датасеты, которые существенно продвинули эту область:
+
+| Название датасета      | Год                   | Описание                                                     | Статья                                                       | Дополнительные ссылки                                        |
+| ---------------------- | --------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| Middlebury             | 2021 (последний релиз) | Стереодатасет **Middlebury** состоит из стереопоследовательностей высокого разрешения со сложной геометрией и пиксельно точными данными ground-truth disparity. Ground-truth disparities получают техникой, которая использует структурированную подсветку и не требует калибровки световых проекторов. | [A database and  evaluation method for Optical Flow](https://vision.middlebury.edu/flow/floweval-ijcv2011.pdf) (на момент написания процитирована 3192 раза) | [Papers with Code](https://paperswithcode.com/dataset/middlebury) - [Сайт](https://vision.middlebury.edu/stereo/data/) |
+| Playing for Benchmarks | 2017                  | более 250K видеокадров высокого разрешения, все размечены ground-truth данными для высокоуровневых задач, а также для низкоуровневых задач вроде оценки оптического потока и визуальной одометрии. | [Playing for benchmarks](https://arxiv.org/abs/1709.07322)   | [Сайт](https://playing-for-benchmarks.org/)               |
+| MPI-Sintel             | 2012                  | Синтетический датасет для оптического потока. Главная характерная черта MPI-Sintel в том, что он содержит одни и те же сцены с разными настройками рендеринга, разным качеством и сложностью; такой подход может дать более глубокое понимание того, где разные алгоритмы оптического потока ломаются. (цитата из статьи) | [A Naturalistic Open Source Movie for Optical Flow Evaluation](https://link.springer.com/chapter/10.1007/978-3-642-33783-3_44) (551 цитирование на момент написания) | [Сайт](http://sintel.is.tue.mpg.de/)                      |
+
+
+
+### Стереосопоставление изображений
+
+Стереосопоставление изображений включает поиск соответствующих элементов на разных изображениях одной и той же сцены. Следующие датасеты сыграли важную роль в этой области:
+
+| Название         | Год  | Описание                                                     | Статья                                                       | Дополнительные ссылки                                  |
+| ---------------- | ---- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------ |
+| Flying Chairs    | 2015 | 22k пар кадров с ground truth flow                       | [Learning optical flow with convolutional networks.](https://arxiv.org/abs/1504.06852)           |                                                        |
+| Flying Chairs 3D | 2015 | 22k стереокадров                                            | [A large dataset to train convolutional networks for disparity, optical flow, and scene flow estimation.](https://arxiv.org/abs/1512.02134) |                                                        |
+| Driving          | 2015 | 4392 стереокадра                                          | [A large dataset to train convolutional networks for disparity, optical flow, and scene flow estimation.](https://arxiv.org/abs/1512.02134) |                                                        |
+| Monkaa           | 2015 | 8591 стереокадр                                           | [A large dataset to train convolutional networks for disparity, optical flow, and scene flow estimation.](https://arxiv.org/abs/1512.02134) |                                                        |
+| Middlebury 2014  | 2014 | 33 стереодатасета высокого разрешения                                  | [High-resolution stereo datasets with subpixel-accurate ground truth](https://link.springer.com/chapter/10.1007/978-3-319-11752-2_3) |                                                        |
+| Tsukuba Stereo   | 2012 | Этот датасет включает 1800 стереопар, сопровождаемых картами disparity ground truth, картами окклюзий и картами разрывов. | Towards a simulation-driven stereo vision system             | [Проект](https://home.cvlab.cs.tsukuba.ac.jp/dataset) |                                                                                                                                                                    
+
+
+## Задачи высокоуровневого компьютерного зрения
+
+### Семантическая сегментация для автономного вождения
+
+Семантическая сегментация жизненно важна, чтобы автономные транспортные средства безопасно интерпретировали окружение и ориентировались в нём. Эти датасеты дают богатые размеченные данные для этой цели:
+
+| Название        | Год | Описание | Статья |  | Дополнительные ссылки |
+|---------------------|--------------|-------------|----------------|---------------------|---------------------|
+| Virtual KITTI 2      | 2020          | Virtual Worlds as Proxy for Multi-Object Tracking Analysis | [Virtual KITTI 2](https://arxiv.org/pdf/2001.10773.pdf) |  | [Сайт](https://europe.naverlabs.com/Research/Computer-Vision/Proxy-Virtual-Worlds/) |
+| ApolloScape | 2019 | По сравнению с существующими публичными датасетами из реальных сцен, например KITTI [2] или Cityscapes [3], ApolloScape содержит гораздо более обширную и богатую разметку, включая целостное семантическое плотное облако точек для каждой площадки, стерео, попиксельную семантическую разметку, разметку разметки полос, сегментацию экземпляров, 3D-экземпляры автомобилей, высокоточное положение для каждого кадра в различных видео вождения с нескольких площадок, городов и времени суток. | [The ApolloScape Open Dataset for Autonomous Driving and its Application](https://arxiv.org/abs/1803.06184) | | [Сайт](https://apolloscape.auto/) |
+| Driving in the Matrix | 2017       | Центральная идея «Driving in the Matrix» — использовать фотореалистичные компьютерные изображения из движка симуляции, чтобы быстро производить размеченные данные.  | [Driving in the Matrix: Can Virtual Worlds Replace Human-Generated Annotations for Real World Tasks?](https://arxiv.org/pdf/1610.01983.pdf) |  | [GitHub](https://github.com/umautobots/driving-in-the-matrix)  ![GitHub stars](https://img.shields.io/github/stars/umautobots/driving-in-the-matrix.svg?style=social&label=Star) |
+| CARLA | 2017 | **CARLA** (CAR Learning to Act) — открытый симулятор городского вождения, разработанный как слой с открытым исходным кодом поверх Unreal Engine 4. Технически он работает аналогично: как слой с открытым исходным кодом поверх Unreal Engine 4, который предоставляет сенсоры в виде RGB-камер (с настраиваемыми положениями), карты глубины ground truth, карты семантической сегментации ground truth с 12 семантическими классами, разработанными для вождения (дорога, разметка полос, дорожный знак, тротуар и так далее), ограничивающие рамки для динамических объектов в окружении и измерения самого агента (положение и ориентация транспортного средства). | [CARLA: An Open Urban Driving Simulator](https://arxiv.org/pdf/1711.03938v1.pdf) | | [Сайт](https://carla.org/) |
+| Synthia             | 2016         | Большая коллекция синтетических изображений для семантической сегментации городских сцен. SYNTHIA состоит из коллекции фотореалистичных кадров, отрендеренных из виртуального города, и поставляется с точной попиксельной семантической разметкой для 13 классов: misc, sky, building, road, sidewalk, fence, vegetation, pole, car, sign, pedestrian, cyclist, lane-marking. | [The SYNTHIA Dataset: A Large Collection of Synthetic Images for Semantic Segmentation of Urban Scenes](https://www.cv-foundation.org/openaccess/content_cvpr_2016/html/Ros_The_SYNTHIA_Dataset_CVPR_2016_paper.html) |  | [Сайт](https://synthia-dataset.net/) |
+| GTA5 | 2016 | Датасет **GTA5** содержит 24966 синтетических изображений с попиксельной семантической разметкой. Изображения отрендерены с помощью видеоигры открытого мира **Grand Theft Auto 5** и все сняты с перспективы автомобиля на улицах виртуальных городов в американском стиле. 19 семантических классов совместимы с классами датасета Cityscapes. | [Playing for Data: Ground Truth from Computer Games](https://arxiv.org/abs/1608.02192v1) |  | [BitBucket](https://bitbucket.org/visinf/projects-2016-playing-for-data/src/master/) |
+| ProcSy |  | Синтетический датасет для семантической сегментации, смоделированный по реальной городской среде и включающий ряд переменных факторов влияния, таких как погода и освещение. | [ProcSy: Procedural Synthetic Dataset Generation Towards Influence Factor Studies Of Semantic Segmentation Networks](https://openaccess.thecvf.com/content_CVPRW_2019/papers/Vision%20for%20All%20Seasons%20Bad%20Weather%20and%20Nighttime/Khan_ProcSy_Procedural_Synthetic_Dataset_Generation_Towards_Influence_Factor_Studies_Of_CVPRW_2019_paper.pdf) | | [Сайт](https://uwaterloo.ca/waterloo-intelligent-systems-engineering-lab/procsy) |
+
+
+### Симуляция помещений и навигация
+
+Навигация во внутренних пространствах может быть сложной из-за их сложности. Эти датасеты помогают разрабатывать системы, способные к симуляции помещений и навигации:
+
+| Название | Год | Описание | Статья | Дополнительные ссылки |
+|--------------|--------------|-------------|----------------|--------------|
+|Habitat       |  2023         | Платформа симуляции Embodied AI для изучения задач совместного взаимодействия человека и робота в домашней среде. | [HABITAT 3.0: A CO-HABITAT FOR HUMANS, AVATARS AND ROBOTS](https://ai.meta.com/static-resource/habitat3) | [Сайт](https://aihabitat.org/habitat3/) |
+| Minos        | 2017          | Мультимодальный симулятор помещений | [MINOS: Multimodal Indoor Simulator for Navigation in Complex Environments](https://arxiv.org/pdf/1712.03931.pdf) | [GitHub](https://github.com/minosworld/minos) ![GitHub stars](https://img.shields.io/github/stars/minosworld/minos.svg?style=social&label=Star) |
+| House3D      | 2017 (архивирован в 2021) | Богатая и реалистичная 3D-среда | [Building generalisable agents with a realistic and rich 3D environment](https://arxiv.org/pdf/1801.02209v2.pdf) | [GitHub](https://github.com/facebookresearch/House3D) ![GitHub stars](https://img.shields.io/github/stars/facebookresearch/House3D.svg?style=social&label=Star) |
+
+
+### Распознавание и симуляция действий человека
+
+Распознавание и симуляция действий человека — сложная задача, которую помогают решать эти датасеты:
+
+| Название    | Год  | Описание                                                     | Статья                                                       | Дополнительные ссылки                                        |
+| ------- | ---- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| PHAV    | 2017 | Синтетический датасет процедурно сгенерированных видео распознавания действий человека. | [Procedural Generation of Videos to Train Deep Action Recognition Networks](https://openaccess.thecvf.com/content_cvpr_2017/papers/de_Souza_Procedural_Generation_of_CVPR_2017_paper.pdf) | [Сайт](http://adas.cvc.uab.es/phav/)                      |
+| Surreal | 2017 | (изменить описание — это для оценки глубины человека и сегментации частей тела человека) Крупномасштабный датасет с синтетически сгенерированными, но реалистичными изображениями людей, отрендеренными из 3D-последовательностей данных захвата движения человека. Мы генерируем более 6 миллионов кадров вместе с позами ground truth, картами глубины и масками сегментации. Мы показываем, что CNN, обученные на нашем синтетическом датасете, позволяют точно оценивать глубину человека и сегментировать части тела на реальных RGB-изображениях. | [Learning from Synthetic Humans](https://arxiv.org/abs/1701.01370) | [GitHub](https://github.com/gulvarol/surreal) ![GitHub stars](https://img.shields.io/github/stars/gulvarol/surreal.svg?style=social&label=Star)- [Сайт](https://www.di.ens.fr/willow/research/surreal/) |
+
+
+### Распознавание лиц
+
+Технология распознавания лиц имеет множество применений: от безопасности до идентификации пользователей. Вот взгляд на датасеты, которые двигают инновации в этой области:
+
+| Название           | Год  | Описание                                                     | Статья                                                       | Дополнительные ссылки                                        |
+| -------------- | ---- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| FaceSynthetics | 2021 | Датасет Face Synthetics — коллекция разнообразных синтетических изображений лиц с метками ground truth. | [Fake It Till You Make It: Face Analysis in the Wild Using Synthetic Data Alone](https://openaccess.thecvf.com/content/ICCV2021/html/Wood_Fake_It_Till_You_Make_It_Face_Analysis_in_the_ICCV_2021_paper.html) | [Сайт](https://microsoft.github.io/FaceSynthetics/) - [GitHub](https://github.com/microsoft/FaceSynthetics) ![GitHub stars](https://img.shields.io/github/stars/microsoft/FaceSynthetics.svg?style=social&label=Star) |
+| FFHQ           | 2018 | состоит из 70 000 высококачественных PNG-изображений разрешением 1024×1024 и содержит значительное разнообразие по возрасту, этнической принадлежности и фону изображения. | [A Style-Based Generator Architecture for Generative Adversarial Networks](https://arxiv.org/abs/1812.04948) | [GitHub](https://github.com/NVlabs/ffhq-dataset?tab=readme-ov-file) ![GitHub stars](https://img.shields.io/github/stars/NVlabs/ffhq-dataset.svg?style=social&label=Star) |
+|                |      |                                                              |                                                              |                                                              |
+
+### 3D-моделирование формы по одному изображению
+
+Создание 3D-моделей по одному изображению — сложная, но увлекательная область. Эти датасеты находятся на переднем крае исследований 3D-моделирования формы:
+
+| Название  | Год  | Описание                                                     | Статья                                                       |
+| ----- | ---- | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| Pix3D | 2018 | Крупномасштабный бенчмарк разнообразных пар изображение–форма с попиксельным 2D-3D выравниванием. У Pix3D широкие применения в задачах, связанных с формой, включая реконструкцию, поиск и оценку ракурса. | [Pix3D: Dataset and Methods for Single-Image 3D Shape Modeling](http://pix3d.csail.mit.edu/papers/pix3d_cvpr.pdf) |
+|       |      |                                                              |                                                              |
+
+### Разнообразные применения
+
+Следующие датасеты либо заточены под нишевые применения, либо покрывают несколько сразу:
+
+| Название датасета          | Год выпуска | Описание | Статья | Внешние ссылки | Применения |
+|-----------------------|--------------|-------------|----------------|-----------------------|-----------------------|
+| CIFAKE | 2023 | CIFAKE — датасет, который содержит 60 000 синтетически сгенерированных изображений и 60 000 реальных изображений (собранных из CIFAR-10). | [CIFAKE: Image Classification and Explainable Identification of AI-Generated Synthetic Images](https://arxiv.org/pdf/2303.14126v1.pdf) |[Kaggle](https://www.kaggle.com/datasets/birdy654/cifake-real-and-ai-generated-synthetic-images/data)| Классификация реальных и фейковых изображений |
+| ABO | 2022 | **ABO** — крупномасштабный датасет, разработанный для экспериментов по предсказанию материалов и мультиракурсному поиску. Датасет содержит рендеры Blender с 30 ракурсов для каждого из 7 953 3D-объектов, а также внутренние и внешние параметры камеры для каждого рендера. | [ABO: Dataset and Benchmarks for Real-World 3D Object Understanding](https://arxiv.org/pdf/2110.06199.pdf) |[Сайт](https://amazon-berkeley-objects.s3.amazonaws.com/index.html)| Предсказание материалов; мультиракурсный поиск; понимание 3D-объектов; реконструкция 3D-формы; |
+| NTIRE 2021 HDR | 2021 | Этот датасет состоит примерно из 1500 обучающих, 60 валидационных и 201 тестового примера. Каждый пример датасета в свою очередь состоит из трёх входных LDR-изображений, то есть короткой, средней и длинной экспозиций, и связанного ground-truth HDR-изображения, выровненного с центральным средним кадром. | [NTIRE 2021 Challenge on High Dynamic Range Imaging: Dataset, Methods and Results](https://arxiv.org/pdf/2106.01439.pdf) |[Papers with Code](https://paperswithcode.com/dataset/ntire-2021-hdr)| Суперразрешение изображений |
+| YCB-Video | 2017 | крупномасштабный видеодатасет для оценки 6D-позы объекта. даёт точные 6D-позы 21 объекта из датасета YCB, наблюдаемых в 92 видео с 133 827 кадрами. | [PoseCNN: A Convolutional Neural Network for 6D Object Pose Estimation in Cluttered Scenes](PoseCNN: A Convolutional Neural Network for 6D Object Pose Estimation in Cluttered Scenes) |[Сайт](https://opendatalab.com/OpenDataLab/YCB-Video)| Оценка 6D-позы |
+| Playing for benchmarks | 2017 | более 250K видеокадров высокого разрешения, все размечены ground-truth данными. | [Playing for benchmarks](https://arxiv.org/abs/1709.07322) |[Сайт](https://playing-for-benchmarks.org/)| Семантическая сегментация экземпляров; детекция и трекинг объектов; 3D-компоновка сцены на уровне объектов; |
+| 4D Light Field Dataset| 2016      | 24 синтетических, плотно дискретизированных 4D light field с высокоточным ground truth disparity. | [A Dataset and Evaluation Methodology for Depth Estimation on 4D Light Fields](https://lightfield-analysis.net/benchmark/paper/lightfield_benchmark_accv_2016.pdf) | [GitHub](https://github.com/lightfield-analysis) ![GitHub stars](https://img.shields.io/github/stars/lightfield-analysis.svg?style=social&label=Star) -  [Сайт](https://lightfield-analysis.uni-konstanz.de/) | Оценка глубины 4D light fields |
+| ICL-NUIM Dataset      | 2014      | RGB-D с моделями шума, 2 сцены. Это для внутренних сред. | [A benchmark for rgb-d visual odometry, 3d reconstruction, and slam.](https://ieeexplore.ieee.org/document/6907054) |[Сайт](https://www.doc.ic.ac.uk/~ahanda/VaFRIC/iclnuim.html)| RGB-D, алгоритмы визуальной одометрии и SLAM. |
+|  |  |  |  ||  |
+
+## Датасеты 3D-объектов
+
+Базовые высокоуровневые задачи компьютерного зрения, такие как детекция объектов или сегментация, в полной мере пользуются преимуществами идеальной разметки, которую дают синтетические данные, и много усилий посвящено тому, чтобы синтетические данные работали для этих задач. Поскольку создание синтетических данных требует разработки 3D-моделей, датасеты обычно также содержат связанную с 3D разметку: карту глубины, размеченные 3D-части формы, объёмные 3D-данные и так далее.
+
+| Датасет        | Год  | Описание                                         | Статья                                                       | Цитирования на момент написания | Дополнительные ссылки                                        |
+| -------------- | ---- | --------------------------------------------------- | ------------------------------------------------------------ | -------------------------------- | ------------------------------------------------------------ |
+| ADORESet       | 2019 | Гибридный датасет для тестирования распознавания объектов       | [A hybrid image dataset toward bridging the gap between real and simulation environments for robotics.](https://link.springer.com/article/10.1007/s00138-018-0966-3) | 13                               | [GitHub](https://github.com/bayraktare/ADORESet) ![GitHub stars](https://img.shields.io/github/stars/bayraktare/ADORESet.svg?style=social&label=Star) |
+| Falling Things | 2018 | 61,5K изображений объектов YCB в виртуальных средах         | [Falling things: A synthetic dataset for 3d object detection and pose estimation.](https://arxiv.org/abs/1804.06534) | 171                              | [Сайт](https://research.nvidia.com/publication/2018-06_falling-things-synthetic-dataset-3d-object-detection-and-pose-estimation) |
+| PartNet        | 2018 | 26671 модель, 573535 размеченных экземпляров частей       | [Partnet: A large-scale benchmark for fine-grained and hierarchical part-level 3d object understanding.](https://arxiv.org/abs/1812.02713) | 552                              | [Сайт](https://opendatalab.com/OpenDataLab/PartNet)       |
+| ShapeNetCore   | 2017 | 51K вручную проверенных моделей из 55 категорий     | [Large-scale 3d shape reconstruction and segmentation from shapenet core55.](https://arxiv.org/abs/1710.06104) | 71                               | [Сайт](https://shapenet.org/)                             |
+| VANDAL         | 2017 | 4,1M изображений глубины, >9K объектов в 319 категориях    | [A deep representation for depth images from synthetic data.](https://arxiv.org/pdf/1609.09713.pdf) | 43                               | N/A                                                          |
+| UnrealCV       | 2017 | Плагин для UE4 для генерации синтетических данных           | [Unrealcv: Virtual worlds for computer vision.](https://dl.acm.org/doi/pdf/10.1145/3123266.3129396) | 95                               | N/A                                                          |
+| SceneNet RGB-D | 2017 | 5M RGB-D изображений из 16K 3D-траекторий            | [Scenenet rgb-d: Can 5m synthetic images beat generic ImageNet pre-training on indoor segmentation?](https://openaccess.thecvf.com/content_ICCV_2017/papers/McCormac_SceneNet_RGB-D_Can_ICCV_2017_paper.pdf) | 309                              | [Сайт](https://robotvault.bitbucket.io/scenenet-rgbd.html) |
+| DepthSynth     | 2017 | Фреймворк для реалистичной симуляции датчиков глубины | [Real-time realistic synthetic data generation from cad models for 2.5d recognition.](https://arxiv.org/pdf/1702.08558.pdf) | 84                               | N/A                                                          |
+| 3DScan         | 2016 | большой датасет сканов объектов                     | [A large dataset of objects scan.](https://arxiv.org/abs/1602.02481) | 223                              | [Сайт]( http://redwood-data.org/3dscan/)                  |
+
+## Заключение
+
+Разработка и использование синтетических датасетов стали переломным моментом в области компьютерного зрения. Они не только предлагают решение проблемы нехватки данных, но и обеспечивают уровень точности и вариативности, который трудно достичь только с реальными данными. По мере развития технологий можно ожидать ещё более сложных и реалистичных датасетов, которые продолжат раздвигать границы возможного в компьютерном зрении.
+
+## Источники 
+
+- [Synthetic Data for Computer Vision](https://github.com/unrealcv/synthetic-computer-vision)
+- [Overview of Synthetic Data Generation](https://arxiv.org/pdf/1909.11512.pdf)

@@ -1,0 +1,107 @@
+
+# Очень глубокие свёрточные сети для распознавания изображений большого масштаба (2014)
+
+
+## Введение
+
+Архитектура VGG была разработана в 2014 году Karen Simonyan и Andrew Zisserman из Visual Geometry Group — отсюда и название VGG — в Oxford University. Модель показала существенный прогресс относительно предыдущих моделей того времени — конкретно, соревнования ImageNet 2014, также известного как ILSVRC.
+
+
+
+## Архитектура сети VGG
+  
+- На вход подаются изображения 224x224. 
+- Форма ядра свёртки — (3,3), форма окна max pooling — (2,2).
+- Число каналов для каждого свёрточного слоя: 64 -> 128 -> 256 -> 512 -> 512. 
+- VGG16 имеет 16 скрытых слоёв (13 свёрточных слоёв и 3 полносвязных слоя).
+- VGG19 имеет 19 скрытых слоёв (16 свёрточных слоёв и 3 полносвязных слоя).
+
+## Ключевые сравнения 
+
+- VGG (16 или 19 слоёв) была относительно глубже других SOTA-сетей того времени. AlexNet, победившая модель ILSVRC 2012, имеет всего 8 слоёв.
+- Несколько маленьких фильтров с рецептивным полем (3X3) и активацией ReLU вместо одного большого фильтра (7X7 или 11X11) лучше обучают сложные признаки. Меньшие фильтры также означают меньше параметров на слой, а между ними появляется дополнительная нелинейность.
+- Обучение и вывод в нескольких масштабах. Каждое изображение обучали в несколько раундов с разными масштабами, чтобы схожие характеристики захватывались при разных размерах.  
+- Согласованность и простота сети VGG упрощают её масштабирование или изменение для будущих улучшений.
+
+
+## Пример на PyTorch
+
+Ниже вы найдёте реализацию VGG19 на PyTorch.
+
+```python
+import torch.nn as nn
+
+
+class VGG19(nn.Module):
+    def __init__(self, num_classes=1000):
+        super(VGG19, self).__init__()
+
+        # Feature extraction layers: Convolutional and pooling layers
+        self.feature_extractor = nn.Sequential(
+            nn.Conv2d(
+                3, 64, kernel_size=3, padding=1
+            ),  # 3 input channels, 64 output channels, 3x3 kernel, 1 padding
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(
+                kernel_size=2, stride=2
+            ),  # Max pooling with 2x2 kernel and stride 2
+            nn.Conv2d(64, 128, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(128, 128, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(128, 256, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(256, 256, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(256, 256, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(256, 256, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(256, 512, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.Conv2d(512, 512, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=2, stride=2),
+        )
+
+        # Pooling Layer
+        self.avgpool = nn.AdaptiveAvgPool2d(output_size=(7, 7))
+
+        # Fully connected layers for classification
+        self.classifier = nn.Sequential(
+            nn.Linear(
+                512 * 7 * 7, 4096
+            ),  # 512 channels, 7x7 spatial dimensions after max pooling
+            nn.ReLU(),
+            nn.Dropout(0.5),  # Dropout layer with 0.5 dropout probability
+            nn.Linear(4096, 4096),
+            nn.ReLU(),
+            nn.Dropout(0.5),
+            nn.Linear(4096, num_classes),  # Output layer with 'num_classes' output units
+        )
+
+    def forward(self, x):
+        x = self.feature_extractor(x)  # Pass input through the feature extractor layers
+        x = self.avgpool(x)  # Pass Data through a pooling layer
+        x = x.view(x.size(0), -1)  # Flatten the output for the fully connected layers
+        x = self.classifier(x)  # Pass flattened output through the classifier layers
+        return x
+```
+

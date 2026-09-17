@@ -1,0 +1,414 @@
+# Convolutional Vision Transformer (CvT)
+
+В этом разделе мы подробно разберём Convolutional Vision Transformer (CvT) — вариант трансформера зрения (Vision Transformer, ViT)[[1]](#vision-transformer), который широко используют для задачи классификации изображений в компьютерном зрении.
+
+## Краткое повторение
+
+Прежде чем перейти к CvT, коротко напомним архитектуру ViT из предыдущих разделов, чтобы лучше оценить архитектуру CvT. ViT раскладывает каждое изображение в последовательность токенов (то есть неперекрывающихся патчей) фиксированной длины, а затем применяет несколько стандартных слоёв трансформера, состоящих из многоголового самовнимания (multi-head self-attention) и позиционного модуля прямого распространения (FFN), чтобы моделировать глобальные связи для классификации.
+
+## Обзор
+
+Модель Convolutional Vision Transformer (CvT) была предложена в статье CvT: Introducing Convolutions to Vision Transformers [[2]](#cvt) авторами Haiping Wu, Bin Xiao, Noel Codella, Mengchen Liu, Xiyang Dai, Lu Yuan и Lei Zhang. CvT использует все преимущества CNN: _локальные рецептивные поля_, _разделяемые веса_ и _пространственный субсэмплинг_ вместе с _инвариантностью к сдвигу, масштабу и искажениям_, сохраняя достоинства трансформеров: _динамическое внимание_, _слияние глобального контекста_ и _лучшее обобщение_. CvT достигает превосходящего качества, сохраняя вычислительную эффективность по сравнению с ViT. Более того, благодаря встроенной структуре локального контекста, которую вносят свёртки, CvT больше не требует позиционного эмбеддинга, что даёт потенциальное преимущество для адаптации к широкому кругу задач зрения, требующих переменного входного разрешения.
+
+## Архитектура
+
+![Архитектура CvT](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/cvt_architecture.png)
+_(a) Общая архитектура, показывающая иерархическую многостадийную структуру, которую обеспечивает слой Convolutional Token Embedding. (b) Детали блока Convolutional Transformer, который содержит свёрточную проекцию как первый слой. [[2]](#cvt)_
+
+Рисунок архитектуры CvT выше иллюстрирует основные шаги трёхстадийного пайплайна. В своей основе CvT встраивает две операции на основе свёрток в архитектуру трансформера зрения:
+
+- **Convolutional Token Embedding**: Представьте, что входное изображение разбивают на перекрывающиеся патчи, переформируют их в токены, а затем подают на свёрточный слой. Это сокращает число токенов (как пикселей в даунсэмплированном изображении), одновременно повышая богатство признаков, подобно традиционным CNN. В отличие от других трансформеров, мы не добавляем к токенам заранее заданную позиционную информацию, полагаясь исключительно на свёрточные операции, чтобы захватить пространственные связи.
+
+![Слой проекции](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/cvt_conv_proj.png)
+_(a) Линейная проекция в ViT. (b) Свёрточная проекция. (c) Сжатая свёрточная проекция (по умолчанию в CvT). [[2]](#cvt)_
+
+- **Блоки Convolutional Transformer**: Каждая стадия в CvT содержит стек этих блоков. Здесь вместо обычных линейных проекций в ViT мы используем глубинно-разделимые свёртки (Convolutional Projection), чтобы обработать компоненты «query», «key» и «value» модуля самовнимания (self-attention), как показано на рисунке выше. Это сохраняет преимущества трансформеров, повышая эффективность. Заметьте, что «токен классификации» (используемый для финального предсказания) добавляется только на последней стадии. Наконец, стандартный полносвязный слой анализирует финальный токен классификации, чтобы предсказать класс изображения.
+
+### Сравнение архитектуры CvT с другими трансформерами зрения
+
+Таблица ниже показывает ключевые различия с точки зрения необходимости позиционного кодирования, типа эмбеддинга токенов, типа проекции и структуры трансформера в backbone между перечисленными характерными параллельными работами и CvT.
+
+| Модель                                           | Нужно позиционное кодирование (PE) | Эмбеддинг токенов                   | Проекция для внимания    | Иерархические трансформеры |
+| ------------------------------------------------ | ---------------------------- | ------------------------------- | ------------------------ | ------------------------- |
+| ViT[[1]](#vision-transformer), DeiT [[3]](#deit) | Да                           | Неперекрывающийся               | Линейная                 | Нет                       |
+| CPVT[[4]](#cpvt)                                 | Нет (с генератором PE)       | Неперекрывающийся               | Линейная                 | Нет                       |
+| TNT[[5]](#tnt)                                   | Да                           | Неперекрывающийся (патч + пиксель) | Линейная              | Нет                       |
+| T2T[[6]](#t2t)                                   | Да                           | Перекрывающийся (конкатенация)  | Линейная                 | Частично (токенизация)    |
+| PVT[[7]](#pvt)                                   | Да                           | Неперекрывающийся               | Пространственное сжатие  | Да                        |
+| _CvT_[[2]](#cvt)                                 | _Нет_                        | _Перекрывающийся (свёртка)_     | _Свёртка_                | _Да_                      |
+
+### Главные особенности
+
+Четыре главные особенности CvT, которые помогли достичь превосходящего качества и вычислительной эффективности, таковы:
+
+- **Иерархия трансформеров**, содержащая новый **свёрточный эмбеддинг токенов**.
+- Блок Convolutional Transformer, использующий **свёрточную проекцию**.
+- **Удаление позиционного кодирования** благодаря встроенной структуре локального контекста, которую вносят свёртки.
+- Меньше **параметров** и ниже **FLOPs** (операций с плавающей точкой в секунду) по сравнению с другими архитектурами трансформеров зрения.
+
+## Реализация на PyTorch
+
+Пора перейти к практике! Давайте разберём, как закодировать каждый из основных блоков архитектуры CvT на PyTorch, как показано в официальной реализации [[8]](#cvt-imp).
+
+1. Импорт нужных библиотек
+
+```python
+from collections import OrderedDict
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from einops import rearrange
+from einops.layers.torch import Rearrange
+```
+
+2. Реализация **свёрточной проекции**
+
+```python
+def _build_projection(self, dim_in, dim_out, kernel_size, padding, stride, method):
+    if method == "dw_bn":
+        proj = nn.Sequential(
+            OrderedDict(
+                [
+                    (
+                        "conv",
+                        nn.Conv2d(
+                            dim_in,
+                            dim_in,
+                            kernel_size=kernel_size,
+                            padding=padding,
+                            stride=stride,
+                            bias=False,
+                            groups=dim_in,
+                        ),
+                    ),
+                    ("bn", nn.BatchNorm2d(dim_in)),
+                    ("rearrage", Rearrange("b c h w -> b (h w) c")),
+                ]
+            )
+        )
+    elif method == "avg":
+        proj = nn.Sequential(
+            OrderedDict(
+                [
+                    (
+                        "avg",
+                        nn.AvgPool2d(
+                            kernel_size=kernel_size,
+                            padding=padding,
+                            stride=stride,
+                            ceil_mode=True,
+                        ),
+                    ),
+                    ("rearrage", Rearrange("b c h w -> b (h w) c")),
+                ]
+            )
+        )
+    elif method == "linear":
+        proj = None
+    else:
+        raise ValueError("Unknown method ({})".format(method))
+
+    return proj
+```
+
+Метод принимает несколько параметров, связанных со свёрточным слоем (такие как входная и выходная размерности, размер ядра, padding, stride и метод), и возвращает блок проекции на основе указанного метода.
+
+- Если метод — `dw_bn` (глубинно-разделимый со batch normalization), он создаёт Sequential-блок, состоящий из глубинно-разделимого свёрточного слоя, за которым следуют batch normalization и перестановка размерностей.
+
+- Если метод — `avg` (average pooling), он создаёт Sequential-блок со слоем average pooling, за которым следует перестановка размерностей.
+
+- Если метод — `linear`, он возвращает None, указывая, что проекция не применяется.
+
+Перестановка размерностей выполняется операцией `Rearrange`, которая изменяет форму входного тензора. Полученный блок проекции затем возвращается.
+
+3. Реализация **свёрточного эмбеддинга токенов**
+
+```python
+class ConvEmbed(nn.Module):
+    def __init__(
+        self, patch_size=7, in_chans=3, embed_dim=64, stride=4, padding=2, norm_layer=None
+    ):
+        super().__init__()
+        patch_size = to_2tuple(patch_size)
+        self.patch_size = patch_size
+
+        self.proj = nn.Conv2d(
+            in_chans, embed_dim, kernel_size=patch_size, stride=stride, padding=padding
+        )
+        self.norm = norm_layer(embed_dim) if norm_layer else None
+
+    def forward(self, x):
+        x = self.proj(x)
+
+        B, C, H, W = x.shape
+        x = rearrange(x, "b c h w -> b (h w) c")
+        if self.norm:
+            x = self.norm(x)
+        x = rearrange(x, "b (h w) c -> b c h w", h=H, w=W)
+
+        return x
+```
+
+Этот код определяет модуль ConvEmbed, который выполняет эмбеддинг входного изображения по патчам.
+
+- Метод `__init__` инициализирует модуль параметрами вроде `patch_size` (размер патчей изображения), `in_chans` (число входных каналов), `embed_dim` (размерность эмбеддингов патчей), `stride` (шаг операции свёртки), `padding` (паддинг операции свёртки) и `norm_layer` (слой нормализации, необязательный).
+
+- В конструкторе создаётся двумерный свёрточный слой (`nn.Conv2d`) с указанными параметрами, включая размер патча, входные каналы, размерность эмбеддинга, stride и padding. Этот свёрточный слой присваивается `self.proj`.
+
+- Если предоставлен слой нормализации, создаётся экземпляр слоя нормализации с каналами embed_dim, и он присваивается `self.norm`.
+
+- Метод forward принимает входной тензор x и применяет операцию свёртки с помощью `self.proj`. Выход переформируется функцией rearrange, чтобы уплощить пространственные размерности. Если присутствует слой нормализации, он применяется к уплощённому представлению. Наконец, тензор переформируется обратно к исходным пространственным размерностям и возвращается.
+
+В итоге этот модуль предназначен для эмбеддинга изображений по патчам, где каждый патч обрабатывается независимо через свёрточный слой, и к эмбеддингам признаков опционально применяется нормализация.
+
+4. Реализация блока **Vision Transformer**
+
+```python
+class VisionTransformer(nn.Module):
+    """Vision Transformer with support for patch or hybrid CNN input stage"""
+
+    def __init__(
+        self,
+        patch_size=16,
+        patch_stride=16,
+        patch_padding=0,
+        in_chans=3,
+        embed_dim=768,
+        depth=12,
+        num_heads=12,
+        mlp_ratio=4.0,
+        qkv_bias=False,
+        drop_rate=0.0,
+        attn_drop_rate=0.0,
+        drop_path_rate=0.0,
+        act_layer=nn.GELU,
+        norm_layer=nn.LayerNorm,
+        init="trunc_norm",
+        **kwargs,
+    ):
+        super().__init__()
+        self.num_features = self.embed_dim = embed_dim
+
+        self.rearrage = None
+
+        self.patch_embed = ConvEmbed(
+            patch_size=patch_size,
+            in_chans=in_chans,
+            stride=patch_stride,
+            padding=patch_padding,
+            embed_dim=embed_dim,
+            norm_layer=norm_layer,
+        )
+
+        with_cls_token = kwargs["with_cls_token"]
+        if with_cls_token:
+            self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        else:
+            self.cls_token = None
+
+        self.pos_drop = nn.Dropout(p=drop_rate)
+        dpr = [
+            x.item() for x in torch.linspace(0, drop_path_rate, depth)
+        ]  # stochastic depth decay rule
+
+        blocks = []
+        for j in range(depth):
+            blocks.append(
+                Block(
+                    dim_in=embed_dim,
+                    dim_out=embed_dim,
+                    num_heads=num_heads,
+                    mlp_ratio=mlp_ratio,
+                    qkv_bias=qkv_bias,
+                    drop=drop_rate,
+                    attn_drop=attn_drop_rate,
+                    drop_path=dpr[j],
+                    act_layer=act_layer,
+                    norm_layer=norm_layer,
+                    **kwargs,
+                )
+            )
+        self.blocks = nn.ModuleList(blocks)
+
+        if self.cls_token is not None:
+            trunc_normal_(self.cls_token, std=0.02)
+
+        if init == "xavier":
+            self.apply(self._init_weights_xavier)
+        else:
+            self.apply(self._init_weights_trunc_normal)
+
+        def forward(self, x):
+            x = self.patch_embed(x)
+            B, C, H, W = x.size()
+
+            x = rearrange(x, "b c h w -> b (h w) c")
+
+            cls_tokens = None
+            if self.cls_token is not None:
+                cls_tokens = self.cls_token.expand(B, -1, -1)
+                x = torch.cat((cls_tokens, x), dim=1)
+
+            x = self.pos_drop(x)
+
+            for i, blk in enumerate(self.blocks):
+                x = blk(x, H, W)
+
+            if self.cls_token is not None:
+                cls_tokens, x = torch.split(x, [1, H * W], 1)
+            x = rearrange(x, "b (h w) c -> b c h w", h=H, w=W)
+
+            return x, cls_tokens
+```
+
+Этот код определяет модуль Vision Transformer. Вот краткий обзор кода:
+
+- **Инициализация:** Класс `VisionTransformer` инициализируется различными параметрами, которые определяют архитектуру модели: размер патча, размерности эмбеддингов, число слоёв, число голов внимания, коэффициенты dropout и т. д.
+
+- **Эмбеддинг патчей:** Модель включает слой эмбеддинга патчей (`patch_embed), который обрабатывает входное изображение, разделяя его на неперекрывающиеся патчи и эмбеддируя их с помощью свёрток.
+
+- **Блоки трансформера:** Модель состоит из стека блоков трансформера (`Block`). Число блоков определяется параметром depth. Каждый блок содержит механизмы многоголового самовнимания (multi-head self-attention) и сеть прямого распространения.
+
+- **Токен классификации:** Опционально модель может включать обучаемый токен классификации (`cls_token`), добавляемый к входной последовательности. Этот токен используется для задач классификации.
+
+- **Стохастическая глубина:** Стохастическая глубина применяется к блокам трансформера: случайное подмножество блоков пропускается во время обучения, чтобы улучшить регуляризацию. Это управляется параметром `drop_path_rate`.
+
+- **Инициализация весов:** Веса модели инициализируются либо усечённым нормальным распределением (`trunc_norm`), либо инициализацией Xavier (`xavier`).
+
+- **Метод Forward:** Метод forward обрабатывает вход через эмбеддинг патчей, переставляет размерности, добавляет токен классификации, если он есть, применяет dropout, а затем пропускает данные через стек блоков трансформера. Наконец, выход переформируется обратно к исходной форме, и токен классификации (если есть) отделяется от остальной последовательности перед возвратом выхода.
+
+5. Реализация блока Convolutional Vision Transformer (**иерархия трансформеров**)
+
+```python
+class ConvolutionalVisionTransformer(nn.Module):
+    def __init__(
+        self,
+        in_chans=3,
+        num_classes=1000,
+        act_layer=nn.GELU,
+        norm_layer=nn.LayerNorm,
+        init="trunc_norm",
+        spec=None,
+    ):
+        super().__init__()
+        self.num_classes = num_classes
+
+        self.num_stages = spec["NUM_STAGES"]
+        for i in range(self.num_stages):
+            kwargs = {
+                "patch_size": spec["PATCH_SIZE"][i],
+                "patch_stride": spec["PATCH_STRIDE"][i],
+                "patch_padding": spec["PATCH_PADDING"][i],
+                "embed_dim": spec["DIM_EMBED"][i],
+                "depth": spec["DEPTH"][i],
+                "num_heads": spec["NUM_HEADS"][i],
+                "mlp_ratio": spec["MLP_RATIO"][i],
+                "qkv_bias": spec["QKV_BIAS"][i],
+                "drop_rate": spec["DROP_RATE"][i],
+                "attn_drop_rate": spec["ATTN_DROP_RATE"][i],
+                "drop_path_rate": spec["DROP_PATH_RATE"][i],
+                "with_cls_token": spec["CLS_TOKEN"][i],
+                "method": spec["QKV_PROJ_METHOD"][i],
+                "kernel_size": spec["KERNEL_QKV"][i],
+                "padding_q": spec["PADDING_Q"][i],
+                "padding_kv": spec["PADDING_KV"][i],
+                "stride_kv": spec["STRIDE_KV"][i],
+                "stride_q": spec["STRIDE_Q"][i],
+            }
+
+            stage = VisionTransformer(
+                in_chans=in_chans,
+                init=init,
+                act_layer=act_layer,
+                norm_layer=norm_layer,
+                **kwargs,
+            )
+            setattr(self, f"stage{i}", stage)
+
+            in_chans = spec["DIM_EMBED"][i]
+
+        dim_embed = spec["DIM_EMBED"][-1]
+        self.norm = norm_layer(dim_embed)
+        self.cls_token = spec["CLS_TOKEN"][-1]
+
+        # Classifier head
+        self.head = (
+            nn.Linear(dim_embed, num_classes) if num_classes > 0 else nn.Identity()
+        )
+        trunc_normal_(self.head.weight, std=0.02)
+
+    def forward_features(self, x):
+        for i in range(self.num_stages):
+            x, cls_tokens = getattr(self, f"stage{i}")(x)
+
+        if self.cls_token:
+            x = self.norm(cls_tokens)
+            x = torch.squeeze(x)
+        else:
+            x = rearrange(x, "b c h w -> b (h w) c")
+            x = self.norm(x)
+            x = torch.mean(x, dim=1)
+
+        return x
+
+    def forward(self, x):
+        x = self.forward_features(x)
+        x = self.head(x)
+
+        return x
+```
+
+Этот код определяет модуль PyTorch под названием `ConvolutionalVisionTransformer`.
+
+- Модель состоит из нескольких стадий, каждая представлена экземпляром класса `VisionTransformer`.
+- У каждой стадии разные конфигурации: размер патча, stride, глубина, число голов и т. д., заданные в словаре spec.
+- Метод `forward_features` обрабатывает вход x через все стадии и агрегирует финальное представление.
+- У класса есть голова классификатора, которая выполняет линейное преобразование, чтобы получить финальный выход.
+- Метод `forward` вызывает `forward_features`, а затем пропускает результат через голову классификатора.
+- Стадии трансформера зрения последовательно называются stage0, stage1 и т. д., и каждая стадия — экземпляр класса `VisionTransformer`, образуя иерархию трансформеров.
+
+Поздравляем! Теперь вы знаете, как реализовать архитектуру CvT на PyTorch. Полный код архитектуры CvT можно посмотреть [здесь](https://github.com/microsoft/CvT/blob/main/lib/models/cls_cvt.py).
+
+## Попробуйте сами
+
+Если вы хотите использовать CvT, не погружаясь в сложные детали его реализации на PyTorch, это легко сделать с помощью библиотеки Hugging Face `transformers`. Вот как:
+
+```bash
+pip install transformers
+```
+
+Документацию модели CvT можно найти [здесь](https://huggingface.co/docs/transformers/model_doc/cvt#overview).
+
+### Использование
+
+Вот как использовать модель CvT, чтобы классифицировать изображение из датасета COCO 2017 в один из 1 000 классов ImageNet:
+
+```python
+from transformers import AutoFeatureExtractor, CvtForImageClassification
+from PIL import Image
+import requests
+
+url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+image = Image.open(requests.get(url, stream=True).raw)
+
+feature_extractor = AutoFeatureExtractor.from_pretrained("microsoft/cvt-13")
+model = CvtForImageClassification.from_pretrained("microsoft/cvt-13")
+
+inputs = feature_extractor(images=image, return_tensors="pt")
+outputs = model(**inputs)
+logits = outputs.logits
+# model predicts one of the 1000 ImageNet classes
+predicted_class_idx = logits.argmax(-1).item()
+print("Predicted class:", model.config.id2label[predicted_class_idx])
+```
+
+## Источники
+
+- [An Image is Worth 16x16 Words: Transformers for Image Recognition at Scale](https://arxiv.org/abs/2010.11929) <a id="vision-transformer"></a>
+- [CvT: Introducing Convolutions to Vision Transformers](https://arxiv.org/abs/2103.15808) <a id="cvt"></a>
+- [Training data-efficient image transformers & distillation through attention](https://arxiv.org/abs/2012.12877) <a id="deit"></a>
+- [Conditional Positional Encodings for Vision Transformers](https://arxiv.org/abs/2102.10882) <a id="cpvt"></a>
+- [Transformer in Transformer](https://arxiv.org/abs/2103.00112v3)<a id="tnt"></a>
+- [Tokens-to-Token ViT: Training Vision Transformers from Scratch on ImageNet](https://arxiv.org/abs/2101.11986) <a id="t2t"></a>
+- [Pyramid Vision Transformer: A Versatile Backbone for Dense Prediction without Convolutions](https://arxiv.org/abs/2102.12122) <a id="pvt"></a>
+- [Implementation of CvT](https://github.com/microsoft/CvT/tree/main) <a id="cvt-imp"></a>

@@ -1,0 +1,218 @@
+# Основы линейной алгебры для 3D-данных
+
+## Системы координат
+
+Большинство трёхмерных данных состоит из объектов вроде точек, у которых есть определённое положение в пространстве, часто представленное тремя декартовыми координатами \\([X, Y, Z]\\).
+
+![Правая и левая системы осей]( https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/axes_handedness.png)
+
+Однако у разных систем разные соглашения об этой системе координат. Самое важное отличие — handedness, то есть относительная ориентация осей X, Y и Z. Самый простой способ запомнить разницу — направить средний палец внутрь так, чтобы большой, указательный и средний пальцы были примерно под прямым углом друг к другу. На левой руке большой палец (X), указательный (Y) и средний (Z) образуют левостороннюю систему координат. Аналогично пальцы правой руки образуют правостороннюю систему координат.
+
+В математике и физике обычно используют правостороннюю систему. Однако в компьютерной графике у разных библиотек и сред разные соглашения. В частности, Blender, Pytorch3d и OpenGL (в основном) используют правосторонние координаты, а DirectX — левосторонние. Здесь мы будем использовать правостороннее соглашение, следуя Blender и NerfStudio.
+
+## Преобразования
+
+Полезно уметь вращать, масштабировать и переносить эти координаты в пространстве. Например, если объект движется, или если мы хотим сменить эти координаты с мировых относительно некоторого фиксированного набора осей на координаты относительно нашей камеры.
+
+Эти преобразования можно представить матрицами. Здесь мы будем использовать `@` для обозначения матричного умножения. Чтобы единообразно представлять перенос, вращение и масштабирование, берём трёхмерные координаты \\([x,y,z]\\) и добавляем дополнительную координату \\(w=1\\). Это называют однородными координатами — в более общем случае \\(w\\) может принимать любое значение, и все точки на четырёхмерной прямой \\([wx, wy, wz, w]\\) соответствуют одной и той же точке \\([x,y,z]\\) в трёхмерном пространстве. Однако здесь \\(w\\) всегда будет равен 1.
+
+Библиотеки вроде [Pytorch3d](https://pytorch3d.org/) предоставляют набор функций для генерации и манипуляции преобразованиями.
+
+Ещё одно соглашение, которое стоит отметить: OpenGL трактует положения как векторы-столбцы `x` (формы 4x1) и применяет преобразование `M`, предварительно умножая вектор на матрицу (`M @ x`), тогда как DirectX и Pytorch3d считают положения векторами-строками формы (1x4) и применяют преобразование, умножая вектор на матрицу справа ( `x @ M` ). Чтобы перейти от одного соглашения к другому, нужно взять транспонирование матрицы `M.T`. Мы покажем, как куб преобразуется под разными матрицами преобразований, в нескольких фрагментах кода. Для этих фрагментов мы будем использовать соглашение OpenGL.
+
+### Переносы
+
+Переносы, то есть сдвиг всех точек в пространстве на одно и то же расстояние и в одном направлении, можно представить как
+
+$$T = \begin{pmatrix} 1 & 0 & 0 & t_x \\ 0 & 1 & 0 & t_y \\ 0 & 0 & 1 & t_z \\ 0 & 0 & 0 & 1 \end{pmatrix}$$
+
+где \\(t = [t_x,t_y,t_z]\\) — вектор направления, на который переносят все точки.
+
+Чтобы попробовать перенос самим, сначала напишем небольшую вспомогательную функцию для визуализации куба:
+
+```python
+import numpy as np
+import matplotlib.pyplot as plt
+
+
+def plot_cube(ax, cube, label, color="black"):
+    ax.scatter3D(cube[0, :], cube[1, :], cube[2, :], label=label, color=color)
+    lines = [
+        [0, 1],
+        [1, 2],
+        [2, 3],
+        [3, 0],
+        [4, 5],
+        [5, 6],
+        [6, 7],
+        [7, 4],
+        [0, 4],
+        [1, 5],
+        [2, 6],
+        [3, 7],
+    ]
+    for line in lines:
+        ax.plot3D(cube[0, line], cube[1, line], cube[2, line], color=color)
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Z")
+    ax.legend()
+    ax.set_xlim([-2, 2])
+    ax.set_ylim([-2, 2])
+    ax.set_zlim([-2, 2])
+```
+
+Теперь мы можем создать куб и предварительно умножить его на матрицу переноса:
+
+```python
+# define 8 corners of our cube with coordinates (x,y,z,w) and w is always 1 in our case
+cube = np.array(
+    [
+        [-1, -1, -1, 1],
+        [1, -1, -1, 1],
+        [1, 1, -1, 1],
+        [-1, 1, -1, 1],
+        [-1, -1, 1, 1],
+        [1, -1, 1, 1],
+        [1, 1, 1, 1],
+        [-1, 1, 1, 1],
+    ]
+)
+
+# translate to follow OpenGL notation
+cube = cube.T
+
+# set up figure
+fig = plt.figure()
+ax = fig.add_subplot(111, projection="3d")
+
+# plot original cube
+plot_cube(ax, cube, label="Original", color="blue")
+
+# translation matrix (shift 1 in positive x and 1 in positive y-axis)
+translation_matrix = np.array([[1, 0, 0, 1], [0, 1, 0, 1], [0, 0, 1, 0], [0, 0, 0, 1]])
+
+# translation
+translated_cube = translation_matrix @ cube
+plot_cube(ax, translated_cube, label="Translated", color="red")
+```
+
+Результат должен выглядеть примерно так:
+
+<div style="display: flex; flex-direction: column; align-items: center;">
+  <img src="https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/translation.png" alt="результат_переноса" />
+</div>
+
+### Масштабирование
+
+Масштабирование — это процесс равномерного увеличения или уменьшения размера объекта. Преобразование масштабирования представляют матрицей, которая умножает каждую координату на масштабный коэффициент. Матрица масштабирования задаётся так:
+
+$$S = \begin{pmatrix} s_x & 0 & 0 & 0 \\ 0 & s_y & 0 & 0 \\ 0 & 0 & s_z & 0 \\ 0 & 0 & 0 & 1 \end{pmatrix}$$
+
+
+Попробуем следующий пример: масштабируем наш куб с коэффициентом 2 вдоль оси X и 0.5 вдоль оси Y.
+
+```python
+# set up figure
+fig = plt.figure()
+ax = fig.add_subplot(111, projection="3d")
+
+# plot original cube
+plot_cube(ax, cube, label="Original", color="blue")
+
+# scaling matrix (scale by 2 along x-axis and by 0.5 along y-axis)
+scaling_matrix = np.array([[2, 0, 0, 0], [0, 0.5, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+
+
+scaled_cube = scaling_matrix @ cube
+
+plot_cube(ax, scaled_cube, label="Scaled", color="green")
+```
+
+Результат должен выглядеть примерно так:
+
+<div style="display: flex; flex-direction: column; align-items: center;">
+  <img src="https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/scaling.png" alt="результат_масштабирования" />
+</div>
+
+### Вращения
+
+Вращения вокруг оси — ещё одно часто используемое преобразование. Есть несколько разных способов представлять вращения, включая углы Эйлера и кватернионы, которые могут быть очень полезны в некоторых приложениях. Снова библиотеки вроде Pytorch3d включают широкий набор функций для выполнения вращений. Однако в качестве простого примера мы просто покажем, как построить вращения вокруг каждой из трёх осей.
+
+- Вращение вокруг оси X:
+
+$$ R_x(\alpha) = \begin{pmatrix} 1 & 0 & 0 & 0 \\ 0 & \cos \alpha & -\sin \alpha & 0 \\ 0 & \sin \alpha & \cos \alpha & 0 \\ 0 & 0 & 0 & 1 \end{pmatrix} $$
+
+Небольшой пример положительного вращения на 20 градусов вокруг оси X приведён ниже:
+
+```python
+# set up figure
+fig = plt.figure()
+ax = fig.add_subplot(111, projection="3d")
+
+# plot original cube
+plot_cube(ax, cube, label="Original", color="blue")
+
+# rotation matrix: +20 deg around x-axis
+angle = 20 * np.pi / 180
+rotation_matrix = np.array(
+    [
+        [1, 0, 0, 0],
+        [0, np.cos(angle), -np.sin(angle), 0],
+        [0, np.sin(angle), np.cos(angle), 0],
+        [0, 0, 0, 1],
+    ]
+)
+
+
+rotated_cube = rotation_matrix @ cube
+
+plot_cube(ax, rotated_cube, label="Rotated", color="orange")
+```
+
+Результат должен выглядеть примерно так:
+
+<div style="display: flex; flex-direction: column; align-items: center;">
+  <img src="https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/rotation.png" alt="результат_вращения" />
+</div>
+
+- Вращение вокруг оси Y:
+
+$$ R_y(\beta) = \begin{pmatrix} \cos \beta & 0 & \sin \beta & 0 \\ 0 & 1 & 0 & 0 \\ -\sin \beta & 0 & \cos \beta & 0 \\ 0 & 0 & 0 & 1 \end{pmatrix} $$
+
+Мы уверены, что вы можете взять фрагмент кода выше и разобраться, как реализовать вращение вокруг оси Y.😎😎
+
+- Вращение вокруг оси Z
+
+$$ R_z(\beta) = \begin{pmatrix} \cos \beta & -\sin \beta & 0 & 0 \\ \sin \beta & \cos \beta & 0 & 0 \\ 0 & 0 & 1 & 0 \\ 0 & 0 & 0 & 1 \end{pmatrix} $$
+
+И снова: можете ли вы использовать последний фрагмент кода и реализовать вращение вокруг оси Z❓
+
+Заметьте, что по стандартному соглашению положительный угол вращения соответствует вращению против часовой стрелки, когда ось вращения направлена к зрителю. Также заметьте, что в большинстве библиотек функция косинуса требует угол в радианах. Чтобы перевести из
+градусов в радианы, умножьте на \\( pi/180\\).
+
+### Комбинирование преобразований
+
+Несколько преобразований можно комбинировать, перемножая их матрицы. Заметьте, что порядок умножения матриц важен: матрицы применяют справа налево. Чтобы получить матрицу, которая применяет преобразования P, Q и R в этом порядке, составное преобразование задаётся как \\( X = R @ Q @ P\\).
+
+Если мы хотим сначала выполнить перенос, затем вращение, а затем масштабирование, которые мы делали выше, одной операцией, это выглядит так:
+
+```python
+# set up figure
+fig = plt.figure()
+ax = fig.add_subplot(111, projection="3d")
+
+# plot original cube
+plot_cube(ax, cube, label="Original", color="blue")
+
+# combination of transforms
+combination_transform = rotation_matrix.dot(scaling_matrix.dot(translation_matrix))
+final_result = combination_transform.dot(cube)
+plot_cube(ax, final_result, label="Combined", color="violet")
+```
+
+Результат должен выглядеть примерно так.
+
+<div style="display: flex; flex-direction: column; align-items: center;">
+  <img src="https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/combined.png" alt="результат_комбинации" />
+</div>

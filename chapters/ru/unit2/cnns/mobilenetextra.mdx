@@ -1,0 +1,50 @@
+# Погружаемся дальше в MobileNet
+## Можно ли использовать Vision Transformers вместе с MobileNet?
+### Не напрямую, но можно!
+MobileNet можно интегрировать с моделями transformer разными способами, чтобы улучшать задачи обработки изображений.
+
+Один подход — использовать MobileNet как извлекатель признаков, где его свёрточные слои обрабатывают изображения, а полученные признаки подают в модель transformer для дальнейшего анализа.
+
+Другой подход — обучать MobileNet и Vision Transformer отдельно, а затем комбинировать их предсказания ансамблевыми техниками, потенциально повышая качество, потому что каждая модель может захватывать разные грани данных. Такая многосторонняя интеграция показывает гибкость и потенциал сочетания свёрточных и transformer-архитектур в обработке изображений.
+
+Есть реализация этой концепции под названием Mobile-Former.
+
+### Mobile-Former
+Mobile-Former — архитектура нейронной сети, которая стремится сочетать MobileNet и Transformers для эффективных задач обработки изображений. Она спроектирована так, чтобы использовать MobileNet для извлечения локальных признаков, а Transformers — для понимания контекста.
+
+![Архитектура Mobile-Former](https://www.researchgate.net/publication/370058769/figure/fig1/AS:11431281148324026@1681702186116/The-overall-architecture-of-Dynamic-Mobile-FormerDMF-and-details-of-DMF-block.png)
+
+Другие подробные объяснения можно найти в [статье Mobile-Former](https://arxiv.org/abs/2108.05895).
+
+## MobileNet с Timm
+### Что такое Timm?
+`timm` (или Py**T**orch **Im**age **M**odels) — библиотека Python, которая предоставляет коллекцию предобученных моделей глубокого обучения, в первую очередь ориентированных на задачи компьютерного зрения, вместе с утилитами для обучения, дообучения и вывода.
+
+Использовать MobileNet через библиотеку `timm` в PyTorch просто, потому что `timm` даёт удобный доступ к широкому набору предобученных моделей, включая разные версии MobileNet.
+Ниже базовая реализация того, как использовать MobileNet с `timm`.
+
+Сначала нужно установить `timm` через `pip`:
+```bash
+pip install timm
+```
+Вот базовый код:
+```python
+import timm
+import torch
+
+# Load a pre-trained MobileNet model
+model_name = "mobilenetv3_large_100"
+
+model = timm.create_model(model_name, pretrained=True)
+
+# If you want to use the model for inference
+model.eval()
+
+# Forward pass with a dummy input
+# Batch size 1, 3 color channels, 224x224 image
+input_tensor = torch.rand(1, 3, 224, 224)
+
+output = model(input_tensor)
+print(output)
+```
+Вы можете перейти на [страницу Timm на Hugging Face](https://huggingface.co/timm) и найти другие предобученные модели и датасеты для разных задач.

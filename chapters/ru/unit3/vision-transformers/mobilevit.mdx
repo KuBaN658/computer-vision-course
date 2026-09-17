@@ -1,0 +1,170 @@
+# MobileViT v2 
+
+Ранее рассмотренные архитектуры трансформеров зрения вычислительно затратны и их трудно запускать на мобильных устройствах. Предыдущая передовая архитектура использовала CNN для мобильных задач зрения. Однако CNN не могут обучаться глобальным представлениям и в результате работают хуже, чем их аналоги на трансформерах.
+
+Архитектура MobileViT стремится решить задачи, нужные для мобильного зрения: низкую задержку и легковесную архитектуру, — сохраняя преимущества трансформеров и CNN. Архитектура MobileViT была разработана Apple и опирается на MobileNet исследовательской команды Google. Архитектура MobileViT развивает предыдущую архитектуру MobileNet, добавляя блок MobileViT и сепарабельное самовнимание (separable self-attention). Эти две особенности дают молниеносную задержку, сокращение числа параметров, вычислительной сложности и возможность разворачивать модели машинного обучения для зрения на устройствах с ограниченными ресурсами.
+
+## Архитектура MobileViT
+
+Архитектура MobileViT, представленная в статье "MobileViT: Light-weight, General-purpose, and Mobile-friendly Vision Transformer" авторов Sachin Mehta и Mohammad Rastegari, выглядит так:
+![Архитектура MobileViT](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/MobileViT-Architecture.png)
+
+Часть этого должна выглядеть знакомо по предыдущей главе. Блоки MobileNet, свёртки n×n, даунсэмплинг, глобальный пулинг и финальный линейный слой.
+
+Как видно по слою глобального пулинга и линейному слою, показанная здесь модель предназначена для классификации. Однако те же блоки, введённые в этой статье, можно использовать для самых разных приложений зрения.
+
+## Блок MobileViT
+
+Блок MobileViT сочетает локальную обработку CNN и глобальную обработку, как в трансформерах. Он использует комбинацию свёрток и слоя трансформера, что позволяет захватывать пространственно локальную информацию и глобальные зависимости в данных.
+
+Схема блока MobileViT показана ниже:
+![Блок MobileViT](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/MobileViT-MobileViTBlock.png)
+
+Что ж, информации много. Давайте разберём по шагам.
+
+- Блок принимает изображение с несколькими каналами. Допустим, для RGB-изображения это 3 канала, так что блок принимает трёхканальное изображение. 
+- Затем он выполняет свёртку N на N по каналам, добавляя их к существующим каналам.
+- Затем блок создаёт линейную комбинацию этих каналов и добавляет её к существующему стеку каналов.
+- Для каждого канала эти изображения разворачиваются (unfold) в уплощённые патчи.
+- Затем эти уплощённые патчи пропускаются через трансформер, чтобы спроецировать их в новые патчи. 
+- Затем патчи снова складываются (fold), чтобы получить изображение с d измерениями. 
+- После этого на сшитое изображение накладывается поточечная свёртка. 
+- Затем сшитое изображение рекомбинируется с исходными RGB-изображениями.
+
+Такой подход даёт рецептивное поле H × W (весь размер входа), моделируя при этом нелокальные и локальные зависимости за счёт сохранения позиционной информации патчей. Это видно в разворачивании и повторном складывании патчей.
+
+<Tip>
+Рецептивное поле — это размер области во входном пространстве, которая влияет на признаки конкретного слоя.
+</Tip>
+
+Этот составной подход позволяет MobileViT иметь меньше параметров, чем традиционные CNN, и даже лучшую точность!
+![Качество MobileViT относительно CNN](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/MobileViT-CNNPreformance.png)  
+
+Главное узкое место эффективности в исходной архитектуре MobileViT — многоголовое самовнимание (multi-head self-attention) в трансформерах, которое требует временной сложности O(k^2) относительно входных токенов.
+
+Многоголовое самовнимание также требует дорогих операций вроде матричных умножений по батчу, что может влиять на задержку на устройствах с ограниченными ресурсами.
+
+Те же авторы написали ещё одну статью именно о том, как заставить внимание работать быстрее. Они назвали это сепарабельным самовниманием.
+
+# Сепарабельное самовнимание
+
+В традиционном многоголовом внимании (multi-head attention) большая O относительно входных токенов квадратична (O(k^2)). Сепарабельное самовнимание, введённое в этой статье, имеет сложность O(k) относительно входных токенов.
+
+Кроме того, метод внимания не использует матричные умножения по батчу, что помогает снизить задержку на устройствах с ограниченными ресурсами вроде мобильных телефонов.
+
+Это огромное улучшение!
+
+<Tip>
+Было много других форм внимания, сложность которых варьировалась от O(k), O(k*sqrt(k)), O(k*log(k)).
+
+Сепарабельное самовнимание было не первой статьёй со сложностью O(k). В Linformer сложность O(k) для внимания также была достигнута в [Linformer](https://arxiv.org/abs/2006.04768) раньше сепарабельного самовнимания.
+
+Однако там всё ещё использовались дорогие операции вроде матричных умножений по батчу.
+</Tip>
+
+Сравнение механизмов внимания в Transformer, Linformer и MobileViT показано ниже:
+![Сравнение внимания](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/MobileViT-Attention.png)  
+
+Рисунок выше сравнивает каждый из отдельных типов внимания между архитектурами Transformer, Linformer и MobileViT v2.
+
+Например, и в архитектуре трансформера, и в Linformer вычисления внимания выполняют два матричных умножения по батчу.  
+
+Однако в случае сепарабельного самовнимания эти два умножения по батчу заменяются двумя отдельными линейными вычислениями. Это позволяет ещё больше ускорить инференс.
+
+# Заключение
+
+Блоки MobileViT сохраняют пространственно локальную информацию, развивая при этом глобальные представления и сочетая сильные стороны трансформеров и CNN. Они дают рецептивное поле, охватывающее всё изображение.
+
+Введение сепарабельного самовнимания в эту существующую архитектуру ещё больше повысило и точность, и скорость инференса.
+![Тесты инференса](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/MobileViT-Inference.png)
+
+Тесты, проведённые с разными архитектурами на iPhone 12s, показали большой скачок качества с введением сепарабельного внимания, как видно выше!
+
+В целом архитектура MobileViT — исключительно мощная архитектура для задач зрения с ограниченными ресурсами, которая даёт быстрый инференс и высокую точность.
+
+# Библиотека Transformers
+
+Если вы хотите попробовать MobileViTv2 локально, можно использовать её из библиотеки Hugging Face `transformers`, вот как:
+
+```bash
+pip install transformers
+```
+Ниже короткий фрагмент о том, как использовать модель MobileViT для классификации изображения.
+
+```python
+from transformers import AutoImageProcessor, MobileViTV2ForImageClassification
+from datasets import load_dataset
+from PIL import Image
+
+url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+image = Image.open(requests.get(url, stream=True).raw)
+
+image_processor = AutoImageProcessor.from_pretrained(
+    "apple/mobilevitv2-1.0-imagenet1k-256"
+)
+model = MobileViTV2ForImageClassification.from_pretrained(
+    "apple/mobilevitv2-1.0-imagenet1k-256"
+)
+
+inputs = image_processor(image, return_tensors="pt")
+
+logits = model(**inputs).logits
+
+# model predicts one of the 1000 ImageNet classes
+predicted_label = logits.argmax(-1).item()
+print(model.config.id2label[predicted_label])
+```
+
+# Inference API
+
+Для ещё более лёгкой настройки компьютерного зрения можно использовать Hugging Face Inference API с MobileViTv2.
+Inference API — это API для взаимодействия со многими моделями, доступными на Hugging Face Hub.
+Мы можем запросить Inference API следующим образом через Python.
+
+```py
+import json
+import requests
+
+headers = {"Authorization": f"Bearer {API_TOKEN}"}
+API_URL = (
+    "https://api-inference.huggingface.co/models/apple/mobilevitv2-1.0-imagenet1k-256"
+)
+
+
+def query(filename):
+    with open(filename, "rb") as f:
+        data = f.read()
+    response = requests.request("POST", API_URL, headers=headers, data=data)
+    return json.loads(response.content.decode("utf-8"))
+
+
+data = query("cats.jpg")
+```
+То же самое можно сделать с JavaScript следующим образом.
+```js
+import fetch from "node-fetch";
+import fs from "fs";
+async function query(filename) {
+    const data = fs.readFileSync(filename);
+    const response = await fetch(
+        "https://api-inference.huggingface.co/models/apple/mobilevitv2-1.0-imagenet1k-256",
+        {
+            headers: { Authorization: `Bearer ${API_TOKEN}` },
+            method: "POST",
+            body: data,
+        }
+    );
+    const result = await response.json();
+    return result;
+}
+query("cats.jpg").then((response) => {
+    console.log(JSON.stringify(response));
+});
+```
+Наконец, Inference API можно запросить через curl.
+```bash
+curl https://api-inference.huggingface.co/models/apple/mobilevitv2-1.0-imagenet1k-256 \
+        -X POST \
+        --data-binary '@cats.jpg' \
+        -H "Authorization: Bearer ${HF_API_TOKEN}"
+```

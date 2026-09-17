@@ -1,0 +1,234 @@
+# GoogLeNet
+
+В этой главе мы разберём свёрточную архитектуру под названием GoogLeNet.
+
+## Обзор
+
+Архитектура Inception, свёрточная нейронная сеть (CNN), созданная для задач компьютерного зрения вроде классификации и детекции, выделяется своей эффективностью. В ней меньше 7 миллионов параметров, и она заметно компактнее предшественников: в 9 раз меньше AlexNet и в 22 раза меньше VGG16. Эта архитектура получила признание на соревновании ImageNet 2014, где адаптация Google под названием GoogLeNet (дань уважения LeNet) установила новые ориентиры по качеству, используя при этом меньше параметров, чем предыдущие лидирующие методы.
+
+
+### Архитектурные новшества
+
+До появления архитектуры Inception модели вроде AlexNet и VGG показали пользу более глубоких структур сети. Однако более глубокие сети обычно требуют больше вычислений и могут приводить к таким проблемам, как переобучение и затухание градиента. Архитектура Inception предлагает решение, позволяя обучать сложные CNN с меньшим числом параметров с плавающей точкой.
+
+#### Модуль Inception «Network In Network»
+
+В предыдущих сетях, таких как AlexNet или VGG, фундаментальным блоком является сам свёрточный слой. Однако Lin et al. 2013 ввели концепцию Network In Network, утверждая, что одна свёртка не обязательно является правильным фундаментальным строительным блоком. Он должен быть сложнее. Вдохновившись этим, авторы модели Inception решили сделать более сложный строительный блок под названием Inception Module, метко названный в честь знаменитого фильма «The Inception» (сон во сне).
+
+Модуль Inception настаивает на применении свёрточных фильтров с ядрами разного размера, чтобы извлекать признаки в нескольких масштабах. Для любой входной карты признаков он параллельно применяет свёртку \\(1 \times 1\\), свёртку 3x3 и свёртку 5x5. Помимо свёртки применяется также операция max pooling. У всех четырёх операций паддинг и шаг подобраны так, чтобы пространственная размерность оставалась одинаковой. Эти признаки конкатенируются и образуют вход для следующего этапа. См. рисунок 1.
+
+
+![наивный модуль Inception](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/inception_naive.png)
+
+Рисунок 1: Наивный модуль Inception
+
+Как видно, применение нескольких свёрток в нескольких масштабах с большими ядрами, например 5x5, может резко увеличить число параметров. Эта проблема усиливается по мере роста размера входных признаков (числа каналов). Поэтому по мере того, как мы углубляемся в сеть, складывая эти «модули Inception», вычисления будут расти очень быстро. Простое решение — уменьшать число признаков там, где вычислительные требования, кажется, растут. Основные узкие места по вычислениям — свёрточные слои. Размерность признаков уменьшают вычислительно дешёвой свёрткой \\(1 \times 1\\) непосредственно перед свёртками 3x3 и 5x5. Посмотрим на примере.
+
+Мы хотим преобразовать карту признаков \\( S \times S \times 128 \\) в \\( S \times S \times 256 \\) с помощью свёртки 5x5. Число параметров (без учёта смещений) равно 5\*5\*128\*256 = 819,200. Однако если сначала уменьшить размерность признаков свёрткой \\(1 \times 1\\) до 64, то число параметров (без учёта смещений) равно \\( 1\times 1\times 128\times 64 + 5\times 5\times 64\times 256 = 8,192 + 409,600 = 417,792 \\). То есть число параметров сократилось почти вдвое!
+
+Мы также хотели бы уменьшить выходные признаки max pooling перед конкатенацией с выходной картой признаков. Поэтому добавляем ещё одну свёртку \\( 1\times 1 \\) после слоя max pooling. Также добавляем активацию ReLU после каждой свёртки \\( 1\times 1 \\), увеличивая нелинейность и сложность модуля. См. рисунок 2.
+
+![уменьшенный модуль Inception](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/inception_reduced.png)
+
+Рисунок 2: Модуль Inception
+
+Кроме того, благодаря параллельным свёрткам в нескольких масштабах мы обеспечиваем больше операций, не углубляясь в сеть, по сути смягчая проблему затухания градиента.
+
+#### Average Pooling
+
+В предыдущих сетях, таких как AlexNet или VGG, финальными слоями были несколько полносвязных слоёв. Эти полносвязные слои из-за большого числа единиц давали большую часть параметров сети. Например, 89% параметров VGG16 находятся в последних трёх полносвязных слоях. 95% параметров AlexNet находятся в последних полносвязных слоях. Эта потребность связана с предпосылкой, что свёрточный слой сам по себе недостаточно сложен.
+
+
+Однако, имея блок Inception, нам не нужны полносвязные слои, и простого average pooling вдоль пространственных измерений должно быть достаточно. Это тоже взято из статьи Network in Network. Тем не менее GoogLeNet включила один полносвязный слой. Авторы сообщили о приросте 0.6% в top-1 accuracy.
+
+
+В GoogLeNet только 15% параметров находятся в полносвязных слоях.
+
+
+#### Вспомогательные классификаторы
+
+С появлением экономящих вычисления свёрток \\( 1 \times 1 \\) и заменой нескольких полносвязных слоёв на average pooling параметры этой сети существенно сокращаются, а значит, мы можем добавлять больше слоёв и идти глубже. Однако складывание слоёв может вызвать проблему затухания градиента, когда градиенты становятся меньше и стремятся к нулю при распространении назад к начальным слоям сети.
+
+Статья вводит вспомогательные классификаторы: от промежуточных слоёв ответвляют несколько небольших классификаторов и добавляют потери этих классификаторов к общей потере (с меньшим весом). Это гарантирует, что слои ближе ко входу тоже получают градиенты приличной величины.
+
+Вспомогательный классификатор состоит из
+- слоя average pooling с размером фильтра \\( 5 \times 5 \\) и шагом 3.
+- свёртки \\( 1 \times 1 \\) со 128 фильтрами для уменьшения размерности и активацией ReLU.
+- полносвязного слоя с 1024 единицами и активацией ReLU.
+- слоя dropout с долей отбрасываемых выходов 70%.
+- линейного слоя с softmax loss в роли классификатора.
+
+Эти вспомогательные классификаторы убирают на этапе вывода. Однако от использования вспомогательных классификаторов получают минимальный прирост (0.5%).
+
+![вспомогательный классификатор GoogLeNet](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/googlenet_auxiliary_classifier.jpg)
+
+Рисунок 3: Вспомогательный классификатор
+
+### Архитектура — GoogLeNet
+
+Полная архитектура GoogLeNet показана на рисунке ниже. Все свёртки, в том числе внутри блока Inception, используют активацию ReLU. Сеть начинается с двух свёрток и блоков max pooling. Затем следует блок из двух модулей Inception (3a и 3b) и max pooling. Далее идёт блок из 5 блоков Inception (4a, 4b, 4c, 4d, 4e) и max pooling после него. Вспомогательные классификаторы берутся с выходов 4a и 4d. Затем следуют два блока Inception (5a и 5b). После этого используют average pooling и полносвязный слой из 128 единиц.
+
+![архитектура GoogLeNet](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/googlenet_architecture.png)
+Рисунок 4: Полная архитектура GoogLeNet
+
+### Код
+
+
+```python
+import torch
+import torch.nn as nn
+
+
+class BaseConv2d(nn.Module):
+    def __init__(self, in_channels, out_channels, **kwargs):
+        super(BaseConv2d, self).__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, **kwargs)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = self.relu(x)
+        return x
+
+
+class InceptionModule(nn.Module):
+    def __init__(self, in_channels, n1x1, n3x3red, n3x3, n5x5red, n5x5, pool_proj):
+        super(InceptionModule, self).__init__()
+
+        self.b1 = nn.Sequential(
+            nn.Conv2d(in_channels, n1x1, kernel_size=1),
+            nn.ReLU(True),
+        )
+
+        self.b2 = nn.Sequential(
+            BaseConv2d(in_channels, n3x3red, kernel_size=1),
+            BaseConv2d(n3x3red, n3x3, kernel_size=3, padding=1),
+        )
+
+        self.b3 = nn.Sequential(
+            BaseConv2d(in_channels, n5x5red, kernel_size=1),
+            BaseConv2d(n5x5red, n5x5, kernel_size=5, padding=2),
+        )
+
+        self.b4 = nn.Sequential(
+            nn.MaxPool2d(3, stride=1, padding=1),
+            BaseConv2d(in_channels, pool_proj, kernel_size=1),
+        )
+
+    def forward(self, x):
+        y1 = self.b1(x)
+        y2 = self.b2(x)
+        y3 = self.b3(x)
+        y4 = self.b4(x)
+        return torch.cat([y1, y2, y3, y4], 1)
+
+
+class AuxiliaryClassifier(nn.Module):
+    def __init__(self, in_channels, num_classes, dropout=0.7):
+        super(AuxiliaryClassifier, self).__init__()
+        self.pool = nn.AvgPool2d(5, stride=3)
+        self.conv = BaseConv2d(in_channels, 128, kernel_size=1)
+        self.relu = nn.ReLU(True)
+        self.flatten = nn.Flatten()
+        self.fc1 = nn.Linear(2048, 1024)
+        self.dropout = nn.Dropout(dropout)
+        self.fc2 = nn.Linear(1024, num_classes)
+
+    def forward(self, x):
+        x = self.pool(x)
+        x = self.conv(x)
+        x = self.flatten(x)
+        x = self.fc1(x)
+        x = self.relu(x)
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return x
+
+
+class GoogLeNet(nn.Module):
+    def __init__(self, use_aux=True):
+        super(GoogLeNet, self).__init__()
+
+        self.use_aux = use_aux
+        ## block 1
+        self.conv1 = BaseConv2d(3, 64, kernel_size=7, stride=2, padding=3)
+        self.lrn1 = nn.LocalResponseNorm(5, alpha=0.0001, beta=0.75)
+        self.maxpool1 = nn.MaxPool2d(3, stride=2, padding=1)
+
+        ## block 2
+        self.conv2 = BaseConv2d(64, 64, kernel_size=1)
+        self.conv3 = BaseConv2d(64, 192, kernel_size=3, padding=1)
+        self.lrn2 = nn.LocalResponseNorm(5, alpha=0.0001, beta=0.75)
+        self.maxpool2 = nn.MaxPool2d(3, stride=2, padding=1)
+
+        ## block 3
+        self.inception3a = InceptionModule(192, 64, 96, 128, 16, 32, 32)
+        self.inception3b = InceptionModule(256, 128, 128, 192, 32, 96, 64)
+        self.maxpool3 = nn.MaxPool2d(3, stride=2, padding=1)
+
+        ## block 4
+        self.inception4a = InceptionModule(480, 192, 96, 208, 16, 48, 64)
+        self.inception4b = InceptionModule(512, 160, 112, 224, 24, 64, 64)
+        self.inception4c = InceptionModule(512, 128, 128, 256, 24, 64, 64)
+        self.inception4d = InceptionModule(512, 112, 144, 288, 32, 64, 64)
+        self.inception4e = InceptionModule(528, 256, 160, 320, 32, 128, 128)
+        self.maxpool4 = nn.MaxPool2d(3, stride=2, padding=1)
+
+        ## block 5
+        self.inception5a = InceptionModule(832, 256, 160, 320, 32, 128, 128)
+        self.inception5b = InceptionModule(832, 384, 192, 384, 48, 128, 128)
+
+        ## auxiliary classifier
+        if self.use_aux:
+            self.aux1 = AuxiliaryClassifier(512, 1000)
+            self.aux2 = AuxiliaryClassifier(528, 1000)
+
+        ## block 6
+        self.avgpool = nn.AvgPool2d(7, stride=1)
+        self.dropout = nn.Dropout(0.4)
+        self.fc = nn.Linear(1024, 1000)
+
+    def forward(self, x):
+        ## block 1
+        x = self.conv1(x)
+        x = self.maxpool1(x)
+        x = self.lrn1(x)
+
+        ## block 2
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x = self.lrn2(x)
+        x = self.maxpool2(x)
+
+        ## block 3
+        x = self.inception3a(x)
+        x = self.inception3b(x)
+        x = self.maxpool3(x)
+
+        ## block 4
+        x = self.inception4a(x)
+        if self.use_aux:
+            aux1 = self.aux1(x)
+        x = self.inception4b(x)
+        x = self.inception4c(x)
+        x = self.inception4d(x)
+        if self.use_aux:
+            aux2 = self.aux2(x)
+        x = self.inception4e(x)
+        x = self.maxpool4(x)
+
+        ## block 5
+        x = self.inception5a(x)
+        x = self.inception5b(x)
+
+        ## block 6
+        x = self.avgpool(x)
+        x = torch.flatten(x, 1)
+        x = self.dropout(x)
+        x = self.fc(x)
+
+        if self.use_aux:
+            return x, aux1, aux2
+        else:
+            return x
+```

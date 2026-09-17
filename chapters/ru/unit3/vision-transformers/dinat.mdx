@@ -1,0 +1,54 @@
+# Dilated Neighborhood Attention Transformer (DINAT)
+
+![Схема архитектуры DINAT](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/dinat_images/dina_comparison.png)
+## Обзор архитектуры
+
+Dilated Neighborhood Attention Transformer (DiNAT) — инновационный иерархический трансформер зрения, созданный, чтобы повысить качество моделей глубокого обучения, особенно в задачах визуального распознавания. В отличие от традиционных трансформеров, которые используют механизмы самовнимания (self-attention), которые могут становиться вычислительно дорогими при масштабировании моделей, DiNAT вводит Dilated Neighborhood Attention (DiNA). DiNA расширяет локальный механизм внимания под названием Neighborhood Attention (NA), добавляя разреженное глобальное внимание без дополнительной вычислительной нагрузки. Это расширение позволяет DiNA захватывать более глобальный контекст, экспоненциально расширять рецептивное поле и эффективно моделировать более дальнодействующие взаимозависимости.
+
+DiNAT сочетает в архитектуре и NA, и DiNA, в результате получается модель-трансформер, способная сохранять локальность, поддерживать эквивариантность относительно сдвигов и давать существенный прирост качества в последующих задачах зрения. Эксперименты с DiNAT демонстрируют его превосходство над сильными базовыми моделями вроде NAT, Swin и ConvNeXt в различных задачах визуального распознавания.
+
+## Ядро DiNAT: Neighborhood Attention
+
+DiNAT основан на архитектуре Neighborhood Attention (NA) — механизме внимания, специально разработанном для задач компьютерного зрения, чтобы эффективно захватывать связи между пикселями изображения. По простой аналогии: представьте изображение, и каждому пикселю нужно понять и сфокусироваться на ближайших пикселях, чтобы осмыслить всю картину. Рассмотрим ключевые свойства NA:
+
+- **Локальные связи**: NA захватывает локальные связи, позволяя каждому пикселю учитывать информацию из непосредственного окружения. Это похоже на то, как мы понимаем сцену, сначала глядя на ближайшие объекты и лишь потом охватывая весь вид.
+
+- **Рецептивное поле**: NA позволяет пикселям расширять понимание окружения без слишком больших дополнительных вычислений. Оно динамически расширяет их «охват» или «диапазон внимания», чтобы при необходимости включать более далёких соседей.
+
+По сути, Neighborhood Attention — это техника, которая позволяет пикселям изображения фокусироваться на окружении и эффективно понимать локальные связи. Это локальное понимание помогает строить детальную картину всего изображения, при этом эффективно расходуя вычислительные ресурсы.
+
+![Схема архитектуры DiNAT](https://huggingface.co/datasets/hf-vision/course-assets/resolve/main/dinat_images/dinat_architecture.png)
+
+## Эволюция DINAT
+
+Разработка Dilated Neighborhood Attention Transformer — существенный шаг вперёд для трансформеров зрения. Он устраняет ограничения существующих механизмов внимания. Изначально Neighborhood Attention был предложен, чтобы обеспечить локальность и эффективность, но ему не хватало захвата глобального контекста. Чтобы преодолеть это ограничение, ввели концепцию Dilated Neighborhood Attention (DiNA). DiNA расширяет NA, превращая окрестности в более крупные разреженные области. Это позволяет захватывать более глобальный контекст и экспоненциально увеличивать рецептивное поле без дополнительной вычислительной нагрузки. Следующий шаг — DiNAT, который сочетает локализованный NA с расширенным глобальным контекстом DiNA. DiNAT достигает этого, постепенно меняя dilation по модели, оптимизируя рецептивные поля и упрощая обучение признаков.
+
+## Классификация изображений с DiNAT
+Вы можете классифицировать изображения ImageNet-1k с помощью модели [shi-labs/dinat-mini-in1k-224](https://huggingface.co/shi-labs/dinat-small-in1k-224) и 🤗 transformers. Её также можно дообучить под ваш сценарий.
+
+```python
+from transformers import AutoImageProcessor, DinatForImageClassification
+from PIL import Image
+import requests
+
+url = "http://images.cocodataset.org/val2017/000000039769.jpg"
+image = Image.open(requests.get(url, stream=True).raw)
+
+feature_extractor = AutoImageProcessor.from_pretrained("shi-labs/dinat-mini-in1k-224")
+model = DinatForImageClassification.from_pretrained("shi-labs/dinat-mini-in1k-224")
+
+inputs = feature_extractor(images=image, return_tensors="pt")
+outputs = model(**inputs)
+logits = outputs.logits
+# model predicts one of the 1000 ImageNet classes
+predicted_class_idx = logits.argmax(-1).item()
+print("Predicted class:", model.config.id2label[predicted_class_idx])
+```
+
+## Источники
+- [DiNAT Paper](https://arxiv.org/abs/2209.15001) [1] 
+- [Hugging Face DiNAT Transformer](https://huggingface.co/docs/transformers/model_doc/dinat) [2]  
+- [Neighborhood Attention(NA)](https://arxiv.org/abs/2204.07143) [3] 
+- [SHI Labs](https://huggingface.co/shi-labs) [4]  
+- [OneFormer Paper](https://arxiv.org/abs/2211.06220) [5]
+- [Hugging Face OneFormer](https://huggingface.co/docs/transformers/main/en/model_doc/oneformer) [6]  
